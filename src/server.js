@@ -22,7 +22,12 @@ app.use(morgan("tiny"));
 app.disable("x-powered-by");
 app.use(compression());
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  }),
+);
 
 app.set("title", "MiscelaniaJM");
 app.set("port", process.env.PORT || 3000);
