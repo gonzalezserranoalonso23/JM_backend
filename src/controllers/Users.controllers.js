@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import UserModel from '../models/Users.models.js'
 import { isValidObjectId } from 'mongoose'
+import dotenv from 'dotenv'
+dotenv.config()
 
 const getUsers = (req, res) => {
   UserModel.find()

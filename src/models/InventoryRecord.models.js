@@ -1,46 +1,46 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose'
 
 const InventoryRecordSchema = new mongoose.Schema({
   date: {
     type: String,
-    required: [true, "Proporcionar un fecha"],
+    required: [true, 'Proporcionar un fecha']
   },
   typeInventory: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "TypeInventory",
-    required: [true, "Proporcionar un tipo de inventario"],
+    ref: 'TypeInventory',
+    required: [true, 'Proporcionar un tipo de inventario']
   },
   productName: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Product",
-    required: [true, "Proporcionar un nombre de producto"],
+    ref: 'Product',
+    required: [true, 'Proporcionar un nombre de producto']
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Category",
-    required: [true, "Proporcionar un nombre de categoría"],
+    ref: 'Category',
+    required: [true, 'Proporcionar un nombre de categoría']
   },
   productPrice: {
     type: String,
-    required: [true, "Proporcionar un nombre de contacto"],
+    required: [true, 'Proporcionar un nombre de contacto']
   },
   quantity: {
     type: Number,
-    required: [true, "Proporcionar un cantidad"],
+    required: [true, 'Proporcionar un cantidad']
   },
   totalAmount: {
     type: Number,
-    required: [true, "Proporcionar un monto"],
+    required: [true, 'Proporcionar un monto']
   },
   Observations: {
     type: String,
-    default: null,
+    default: null
   },
   User: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: [true, "Proporcionar un usuario"],
-  },
-});
+    ref: 'User',
+    required: [true, 'Proporcionar un usuario']
+  }
+})
 
-export default mongoose.model("InventoryRecord", InventoryRecordSchema);
+export default mongoose.model('InventoryRecord', InventoryRecordSchema)
