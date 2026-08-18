@@ -29,16 +29,18 @@ const createSupplier = (req, res) => {
   const {
     suppliersName,
     supplierPhone,
-    supplierContact,
+    suppliersContact,
     raiseOrder,
-    deliverOrder
+    deliverOrder,
+    isActive
   } = req.body
   const newSupplier = new SuppliersModel({
     suppliersName,
     supplierPhone,
-    supplierContact,
+    suppliersContact,
     raiseOrder,
-    deliverOrder
+    deliverOrder,
+    isActive
   })
   newSupplier
     .save()
@@ -56,9 +58,10 @@ const updateSupplier = (req, res) => {
   const {
     suppliersName,
     supplierPhone,
-    supplierContact,
+    suppliersContact,
     raiseOrder,
-    deliverOrder
+    deliverOrder,
+    isActive
   } = req.body
   if (!isValidObjectId(id))
     return res.status(501).json({
@@ -69,9 +72,10 @@ const updateSupplier = (req, res) => {
     {
       suppliersName,
       supplierPhone,
-      supplierContact,
+      suppliersContact,
       raiseOrder,
-      deliverOrder
+      deliverOrder,
+      isActive
     },
     { new: true }
   )

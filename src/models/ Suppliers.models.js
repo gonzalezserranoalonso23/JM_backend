@@ -6,16 +6,16 @@ const supplierSchema = new mongoose.Schema({
     required: [true, 'Proporcionar un nombre de proveedor'],
     unique: [true, 'El nombre de proveedor ya existe']
   },
+  suppliersContact: {
+    type: String,
+    required: [true, 'Proporcionar un contacto de proveedor']
+  },
   supplierPhone: {
     type: String,
     required: [true, 'Proporcionar un número de teléfono'],
     unique: true
   },
-  supplierContact: {
-    type: String,
-    required: [true, 'Proporcionar un nombre de contacto'],
-    unique: false
-  },
+
   raiseOrder: {
     type: String
   },
@@ -23,8 +23,7 @@ const supplierSchema = new mongoose.Schema({
     type: String
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: Boolean
   }
 })
 
