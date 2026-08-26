@@ -6,8 +6,8 @@ const InventoryRecordSchema = new mongoose.Schema({
     required: [true, 'Proporcionar un fecha']
   },
   typeInventory: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'TypeInventory',
+    type: String,
+    enum: ['ENTRY', 'ISSUE'],
     required: [true, 'Proporcionar un tipo de inventario']
   },
   productName: {

@@ -16,15 +16,25 @@ import typeInventory from './routes/TypeInventory.routes.js'
 import InventoryRecordsRouter from './routes/InventoryRecord.routes.js'
 import PaymentsTypeRouter from './routes/PaymentsType.routes.js'
 import DailyInformationRouter from './routes/DailyInformation.routes.js'
+import OrdersRouter from './routes/Orders.routes.js'
+import TasksRouter from './routes/Tasks.routes.js'
 
 dotenv.config('./.env')
 app.use(morgan('tiny'))
 app.disable('x-powered-by')
 app.use(compression())
 app.use(express.json())
+const allowedOrigins = [
+  process.env.CLIENT,
+  process.env.DEV,
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+].filter(Boolean)
 app.use(
   cors({
-    origin: [process.env.CLIENT, process.env.DEV],
+    origin: allowedOrigins,
     credentials: true
   })
 )
@@ -42,6 +52,8 @@ app.use('/api/products', ProductsRouter)
 app.use('/api/inventory-records', InventoryRecordsRouter)
 app.use('/api/payment-types', PaymentsTypeRouter)
 app.use('/api/daily-information', DailyInformationRouter)
+app.use('/api/orders', OrdersRouter)
+app.use('/api/tasks', TasksRouter)
 
 connection()
   .then(() => {

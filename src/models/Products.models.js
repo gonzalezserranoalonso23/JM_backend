@@ -9,9 +9,15 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Proporcionar una descripción es obligatorio']
   },
+  purchasePrice: {
+    type: Number,
+    required: [true, 'Proporcionar el precio de compra es obligatorio'],
+    min: [0, 'El precio de compra no puede ser negativo']
+  },
   productPrice: {
     type: Number,
-    required: [true, 'Proporcionar un precio es obligatorio']
+    required: [true, 'Proporcionar el precio de venta es obligatorio'],
+    min: [0, 'El precio de venta no puede ser negativo']
   },
   productStock: {
     type: Number,

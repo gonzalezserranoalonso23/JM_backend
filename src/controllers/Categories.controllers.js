@@ -1,90 +1,86 @@
 import CategoriesModel from '../models/Categories.models.js'
 import { isValidObjectId } from 'mongoose'
 
-const getCategories = (req, res) => {
-  CategoriesModel.find()
-    .then((data) => {
-      res.status(200).json(data)
-    })
-    .catch((error) =>
-      res.status(501).json({
-        message: 'Hubo un error al cargar la categoría!',
-        error
-      })
-    )
+const getCategories = async (req, res) => {
+  try {
+    const data = await CategoriesModel.find()
+    res.status(200).json(data)
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al cargar las categorías', error: error.message })
+  }
 }
 
-const getCategory = (req, res) => {
+const getCategory = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
-  CategoriesModel.findById(id)
-    .then((data) => res.status(200).json(data))
-    .catch((error) =>
-      res.status(501).json({
-        message: 'Hubo un error al cargar la categoría!',
-        error
-      })
-    )
+    return res.status(400).json({ message: 'ID inválido' })
+  try {
+    const data = await CategoriesModel.findById(id)
+    if (!data)
+      return res.status(404).json({ message: 'Categoría no encontrada' })
+    res.status(200).json(data)
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al cargar la categoría', error: error.message })
+  }
 }
-const createCategory = (req, res) => {
+
+const createCategory = async (req, res) => {
   const { categories } = req.body
-
-  const newCategory = new CategoriesModel({
-    categories
-  })
-  newCategory
-    .save()
-    .then((data) => res.status(201).json(data))
-    .catch((error) =>
-      res.status(501).json({
-        message: 'Ha ocurrido un error al crear la categoría ',
-        error
-      })
-    )
+  if (!categories)
+    return res
+      .status(400)
+      .json({ message: 'El nombre de la categoría es requerido' })
+  try {
+    const newCategory = new CategoriesModel({ categories })
+    const data = await newCategory.save()
+    res.status(201).json(data)
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al crear la categoría', error: error.message })
+  }
 }
 
-const updateCategory = (req, res) => {
+const updateCategory = async (req, res) => {
   const { id } = req.params
   const { categories } = req.body
-  console.log(id, categories)
   if (!isValidObjectId(id))
-    return res.status(501).json({
-      messsage: 'Ha ocurrido un error en la peticion'
-    })
-  CategoriesModel.findOneAndUpdate(
-    { _id: id },
-    {
-      categories
-    },
-    { new: true }
-  )
-    .then((data) => res.status(200).json(data))
-    .catch((error) =>
-      res.status(501).json({
-        message: 'Ha ocurrido un error al actualizar la categoría',
-        error
-      })
+    return res.status(400).json({ message: 'ID inválido' })
+  try {
+    const data = await CategoriesModel.findOneAndUpdate(
+      { _id: id },
+      { categories },
+      { new: true }
     )
+    if (!data)
+      return res.status(404).json({ message: 'Categoría no encontrada' })
+    res.status(200).json(data)
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error al actualizar la categoría',
+      error: error.message
+    })
+  }
 }
 
-const deleteCategory = (req, res) => {
+const deleteCategory = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
-
-  CategoriesModel.deleteOne({ _id: id })
-    .then(() =>
-      res
-        .status(201)
-        .json({ message: 'La categoría se ha borrado exitosamente!' })
-    )
-    .catch((error) =>
-      res.status(505).json({
-        message: 'Hubo un error al intentar borrar la categoría ',
-        error
-      })
-    )
+    return res.status(400).json({ message: 'ID inválido' })
+  try {
+    const data = await CategoriesModel.deleteOne({ _id: id })
+    if (data.deletedCount === 0)
+      return res.status(404).json({ message: 'Categoría no encontrada' })
+    res.status(200).json({ message: 'Categoría eliminada exitosamente' })
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al eliminar la categoría', error: error.message })
+  }
 }
 
 export {

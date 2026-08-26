@@ -3,29 +3,43 @@ import mongoose from 'mongoose'
 const OrderSchema = new mongoose.Schema({
   date: {
     type: String,
-    required: [true, 'Proporcionar un fecha']
+    required: [true, 'Proporcionar una fecha']
   },
   supplier: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Supplier',
-    required: [true, 'Proporcionar un nombre de proveedor']
+    required: [true, 'Proporcionar un proveedor']
   },
-  order: [
+  items: [
     {
-      product: {
+      productId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Product',
-        required: [true, 'Proporcionar un nombre de producto']
+        ref: 'Product'
       },
+      productName: String,
       quantity: {
         type: Number,
-        required: [true, 'Proporcionar un cantidad']
-      }
+        required: [true, 'Proporcionar cantidad']
+      },
+      price: {
+        type: Number,
+        required: [true, 'Proporcionar precio']
+      },
+      subtotal: Number
     }
   ],
+  totalAmount: {
+    type: Number,
+    default: 0
+  },
   status: {
-    type: Boolean,
-    default: true
+    type: String,
+    enum: ['pendiente', 'confirmado', 'completado', 'cancelado'],
+    default: 'pendiente'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 })
 
