@@ -32,12 +32,12 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173'
 ].filter(Boolean)
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true
-  })
-)
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true
+}
+app.use(cors(corsOptions))
+app.options(/.*/, cors(corsOptions))
 
 app.set('title', 'MiscelaniaJM')
 app.set('port', process.env.PORT || 3000)
