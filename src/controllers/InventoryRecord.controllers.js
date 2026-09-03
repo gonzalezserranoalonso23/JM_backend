@@ -92,6 +92,12 @@ const createInventoryRecord = async (req, res) => {
       })
     }
 
+    const authenticatedUserId = req.user?.id || req.userId
+
+    if (!authenticatedUserId) {
+      return res.status(401).json({ message: 'Usuario no autenticado' })
+    }
+
     // Crear el registro de inventario
     const newInventoryRecord = new InventoryRecord({
       date,
@@ -102,7 +108,7 @@ const createInventoryRecord = async (req, res) => {
       quantity,
       totalAmount,
       Observations,
-      User: req.userId // Del token verificado
+      User: authenticatedUserId
     })
 
     const savedRecord = await newInventoryRecord.save()
