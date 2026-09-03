@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node src/server.js",
+    "build": "node --check src/server.js",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:coverage": "vitest --run --coverage",
