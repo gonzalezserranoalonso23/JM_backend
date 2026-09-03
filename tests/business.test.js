@@ -162,7 +162,10 @@ describe('Business logic tests', () => {
       _id: 'record-123',
       date: '2026-09-03',
       typeInventory: 'ENTRY',
-      productName: { _id: '507f1f77bcf86cd799439011', productName: 'Coca-Cola' },
+      productName: {
+        _id: '507f1f77bcf86cd799439011',
+        productName: 'Coca-Cola'
+      },
       category: { _id: '507f1f77bcf86cd799439012', name: 'Bebidas' },
       productPrice: 18,
       quantity: 7,
@@ -180,7 +183,9 @@ describe('Business logic tests', () => {
       _id: '507f1f77bcf86cd799439011',
       productStock: 17
     })
-    InventoryRecordModel.findById.mockReturnValue(mockChainedPopulate(populatedRecord))
+    InventoryRecordModel.findById.mockReturnValue(
+      mockChainedPopulate(populatedRecord)
+    )
     InventoryRecordModel.instances = []
 
     await createInventoryRecord(
@@ -222,7 +227,10 @@ describe('Business logic tests', () => {
       _id: 'record-124',
       date: '2026-09-03',
       typeInventory: 'ISSUE',
-      productName: { _id: '507f1f77bcf86cd799439011', productName: 'Coca-Cola' },
+      productName: {
+        _id: '507f1f77bcf86cd799439011',
+        productName: 'Coca-Cola'
+      },
       category: { _id: '507f1f77bcf86cd799439012', name: 'Bebidas' },
       productPrice: 25,
       quantity: 3,
@@ -240,7 +248,9 @@ describe('Business logic tests', () => {
       _id: '507f1f77bcf86cd799439011',
       productStock: 9
     })
-    InventoryRecordModel.findById.mockReturnValue(mockChainedPopulate(populatedRecord))
+    InventoryRecordModel.findById.mockReturnValue(
+      mockChainedPopulate(populatedRecord)
+    )
     DailyInformation.findOne.mockResolvedValue({
       date: '2026-09-03',
       totalSales: 0,
@@ -272,7 +282,9 @@ describe('Business logic tests', () => {
       { productStock: 9 },
       { new: true }
     )
-    expect(DailyInformation.findOne).toHaveBeenCalledWith({ date: '2026-09-03' })
+    expect(DailyInformation.findOne).toHaveBeenCalledWith({
+      date: '2026-09-03'
+    })
     expect(res.status).toHaveBeenCalledWith(201)
   })
 
