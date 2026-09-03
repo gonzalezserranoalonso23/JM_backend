@@ -1,7 +1,6 @@
 # Dependencies
 node_modules
-pnpm-lock.yaml
-pnpm-workspace.yaml
+.pnpm-store
 
 # Environment variables
 .env
@@ -11,6 +10,7 @@ pnpm-workspace.yaml
 # Build output
 dist
 build
+coverage
 
 # Editor directories and files
 .vscode/*
