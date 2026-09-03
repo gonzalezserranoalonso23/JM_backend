@@ -123,10 +123,7 @@ import {
   createInventoryRecord,
   getInventoryRecords
 } from '../src/controllers/InventoryRecord.controllers.js'
-import {
-  createOrder,
-  getOrders
-} from '../src/controllers/Orders.controllers.js'
+import { getOrders } from '../src/controllers/Orders.controllers.js'
 import {
   createPaymentType,
   getPaymentTypes
@@ -135,10 +132,7 @@ import {
   createProduct,
   getProducts
 } from '../src/controllers/Products.controllers.js'
-import {
-  createSupplier,
-  getSuppliers
-} from '../src/controllers/Suppliers.controllers.js'
+import { getSuppliers } from '../src/controllers/Suppliers.controllers.js'
 import { createTask, getTasks } from '../src/controllers/Tasks.controllers.js'
 import {
   createTypeInventory,
