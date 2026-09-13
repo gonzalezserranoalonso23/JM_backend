@@ -3,6 +3,7 @@ import {
   getInventoryRecord,
   getInventoryRecords,
   createInventoryRecord,
+  createInventoryRecords,
   updateInventoryRecord,
   deleteInventoryRecord,
   getDailySalesSummary,
@@ -22,6 +23,7 @@ router.get('/reports/date-range', verifyToken, getSalesByDateRange)
 router.get('/reports/by-type', verifyToken, getInventoryByType)
 router.get('/reports/stats', verifyToken, getInventoryStats)
 router.get('/:id', verifyToken, getInventoryRecord)
+router.post('/bulk', verifyToken, createInventoryRecords)
 router.post('/', verifyToken, createInventoryRecord)
 router.put('/:id', verifyToken, updateInventoryRecord)
 router.delete('/:id', verifyToken, deleteInventoryRecord)

@@ -50,103 +50,186 @@ const getInventoryRecord = (req, res) => {
       })
     )
 }
+// Crea un único movimiento de inventario y actualiza el stock del producto.
+// Lanza un error con `.status` para que el caller (single o bulk) responda igual.
+const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
+  const { date, typeInventory, productName, category, Observations } = payload
+
+  // Los campos numéricos pueden llegar como string desde el formulario;
+  // sin castear, `productStock + quantity` concatenaba strings en vez de sumar.
+  const productPrice = payload.productPrice
+  const quantity = Number(payload.quantity)
+  const totalAmount = Number(payload.totalAmount)
+
+  const normalizedType = normalizeInventoryType(typeInventory)
+  if (!normalizedType) {
+    const error = new Error('Tipo de inventario inválido. Use ENTRY o ISSUE')
+    error.status = 400
+    throw error
+  }
+
+  if (!isValidObjectId(productName)) {
+    const error = new Error('ID de producto inválido')
+    error.status = 400
+    throw error
+  }
+
+  if (!category || !isValidObjectId(category)) {
+    const error = new Error('Categoría inválida o no seleccionada')
+    error.status = 400
+    throw error
+  }
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    const error = new Error('Cantidad inválida')
+    error.status = 400
+    throw error
+  }
+
+  if (!Number.isFinite(totalAmount)) {
+    const error = new Error('Total inválido')
+    error.status = 400
+    throw error
+  }
+
+  const product = await Product.findById(productName)
+  if (!product) {
+    const error = new Error('Producto no encontrado')
+    error.status = 404
+    throw error
+  }
+
+  const isExit = isIssueType(normalizedType)
+
+  if (isExit && product.productStock < quantity) {
+    const error = new Error('Stock insuficiente')
+    error.status = 400
+    error.availableStock = product.productStock
+    error.requestedQuantity = quantity
+    throw error
+  }
+
+  if (!authenticatedUserId) {
+    const error = new Error('Usuario no autenticado')
+    error.status = 401
+    throw error
+  }
+
+  const newInventoryRecord = new InventoryRecord({
+    date,
+    typeInventory: normalizedType,
+    productName,
+    category,
+    productPrice,
+    quantity,
+    totalAmount,
+    Observations,
+    User: authenticatedUserId
+  })
+
+  const savedRecord = await newInventoryRecord.save()
+
+  const isEntry = !isExit
+  const stockChange = isEntry ? quantity : -quantity
+  const newStock = product.productStock + stockChange
+
+  await Product.findByIdAndUpdate(
+    productName,
+    { productStock: newStock },
+    { new: true }
+  )
+
+  if (isExit && date) {
+    const dateStr = date.toString().split('T')[0] // Formato YYYY-MM-DD
+    const dailyInfo = await DailyInformation.findOne({ date: dateStr })
+
+    if (dailyInfo) {
+      dailyInfo.totalSales += totalAmount
+      dailyInfo.totalTransactions += 1
+      await dailyInfo.save()
+    }
+  }
+
+  return InventoryRecord.findById(savedRecord._id)
+    .populate('productName', { __v: 0 })
+    .populate('category', { __v: 0 })
+    .populate('User', { __v: 0, password: 0 })
+}
+
+// Normaliza errores de Mongoose (ValidationError/CastError) a un 400 con
+// mensaje legible, en vez de un 500 genérico que oculta la causa real.
+const toHttpError = (error) => {
+  if (error.status) return error
+
+  if (error.name === 'ValidationError' || error.name === 'CastError') {
+    const httpError = new Error(
+      Object.values(error.errors || {})
+        .map((e) => e.message)
+        .join(', ') || error.message
+    )
+    httpError.status = 400
+    return httpError
+  }
+
+  return error
+}
+
 const createInventoryRecord = async (req, res) => {
   try {
-    const {
-      date,
-      typeInventory,
-      productName,
-      category,
-      productPrice,
-      quantity,
-      totalAmount,
-      Observations
-    } = req.body
-
-    // El tipo de inventario ahora es estático: ENTRY | ISSUE
-    const normalizedType = normalizeInventoryType(typeInventory)
-    if (!normalizedType) {
-      return res.status(400).json({
-        message: 'Tipo de inventario inválido. Use ENTRY o ISSUE'
-      })
-    }
-
-    if (!isValidObjectId(productName)) {
-      return res.status(400).json({ message: 'ID de producto inválido' })
-    }
-
-    // Obtener el producto
-    const product = await Product.findById(productName)
-    if (!product) {
-      return res.status(404).json({ message: 'Producto no encontrado' })
-    }
-
-    // Validar stock disponible para salidas
-    const isExit = isIssueType(normalizedType)
-
-    if (isExit && product.productStock < quantity) {
-      return res.status(400).json({
-        message: 'Stock insuficiente',
-        availableStock: product.productStock,
-        requestedQuantity: quantity
-      })
-    }
-
     const authenticatedUserId = req.user?.id || req.userId
-
-    if (!authenticatedUserId) {
-      return res.status(401).json({ message: 'Usuario no autenticado' })
-    }
-
-    // Crear el registro de inventario
-    const newInventoryRecord = new InventoryRecord({
-      date,
-      typeInventory: normalizedType,
-      productName,
-      category,
-      productPrice,
-      quantity,
-      totalAmount,
-      Observations,
-      User: authenticatedUserId
-    })
-
-    const savedRecord = await newInventoryRecord.save()
-
-    // Actualizar stock del producto
-    const isEntry = !isExit
-    const stockChange = isEntry ? quantity : -quantity
-    const newStock = product.productStock + stockChange
-
-    await Product.findByIdAndUpdate(
-      productName,
-      { productStock: newStock },
-      { new: true }
+    const populatedRecord = await createSingleInventoryRecord(
+      req.body,
+      authenticatedUserId
     )
 
-    // Actualizar DailyInformation si es una salida (venta)
-    if (isExit && date) {
-      const dateStr = date.toString().split('T')[0] // Formato YYYY-MM-DD
-      const dailyInfo = await DailyInformation.findOne({ date: dateStr })
+    res.status(201).json(populatedRecord)
+  } catch (rawError) {
+    const error = toHttpError(rawError)
+    res.status(error.status || 500).json({
+      message: error.status
+        ? error.message
+        : 'Ha ocurrido un error al crear el registro de inventario',
+      availableStock: error.availableStock,
+      requestedQuantity: error.requestedQuantity,
+      error: error.status ? undefined : error.message
+    })
+  }
+}
 
-      if (dailyInfo) {
-        dailyInfo.totalSales += totalAmount
-        dailyInfo.totalTransactions += 1
-        await dailyInfo.save()
-      }
+// Recibe un carrito de movimientos (arreglo) y los crea uno por uno, en orden,
+// para que el stock de cada iteración quede reflejado en la siguiente.
+const createInventoryRecords = async (req, res) => {
+  const records = Array.isArray(req.body) ? req.body : req.body.records
+
+  if (!Array.isArray(records) || records.length === 0) {
+    return res.status(400).json({
+      message: 'Se requiere un arreglo "records" con al menos un movimiento'
+    })
+  }
+
+  const authenticatedUserId = req.user?.id || req.userId
+  const created = []
+
+  try {
+    for (const payload of records) {
+      const populatedRecord = await createSingleInventoryRecord(
+        payload,
+        authenticatedUserId
+      )
+      created.push(populatedRecord)
     }
 
-    // Retornar el registro poblado
-    const populatedRecord = await InventoryRecord.findById(savedRecord._id)
-      .populate('productName', { __v: 0 })
-      .populate('category', { __v: 0 })
-      .populate('User', { __v: 0, password: 0 })
-
-    res.status(201).json(populatedRecord)
-  } catch (error) {
-    res.status(500).json({
-      message: 'Ha ocurrido un error al crear el registro de inventario',
-      error: error.message
+    res.status(201).json(created)
+  } catch (rawError) {
+    const error = toHttpError(rawError)
+    res.status(error.status || 500).json({
+      message: error.status
+        ? error.message
+        : 'Ha ocurrido un error al crear el registro de inventario',
+      availableStock: error.availableStock,
+      requestedQuantity: error.requestedQuantity,
+      error: error.status ? undefined : error.message,
+      created
     })
   }
 }
@@ -396,6 +479,7 @@ export {
   getInventoryRecord,
   getInventoryRecords,
   createInventoryRecord,
+  createInventoryRecords,
   updateInventoryRecord,
   deleteInventoryRecord,
   getDailySalesSummary,
