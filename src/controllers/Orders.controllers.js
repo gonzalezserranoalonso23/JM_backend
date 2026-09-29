@@ -4,7 +4,11 @@ import { isValidObjectId } from 'mongoose'
 // Obtener todas las órdenes
 const getOrders = (req, res) => {
   Order.find()
-    .populate('supplier', { name: 1, contactInfo: 1 })
+    .populate('supplier', {
+      suppliersName: 1,
+      suppliersContact: 1,
+      supplierPhone: 1
+    })
     .sort({ date: -1 })
     .then((data) => res.status(200).json(data))
     .catch((error) =>
@@ -80,16 +84,16 @@ const updateOrder = (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   }
 
+  const update = Object.fromEntries(
+    Object.entries({ date, supplier, items, totalAmount, status }).filter(
+      ([, value]) => value !== undefined
+    )
+  )
+
   Order.findByIdAndUpdate(
     id,
-    {
-      date,
-      supplier,
-      items,
-      totalAmount,
-      status
-    },
-    { new: true }
+    { $set: update },
+    { new: true, runValidators: true }
   )
     .populate('supplier')
     .then((data) => {
