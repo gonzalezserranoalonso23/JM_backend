@@ -12,8 +12,7 @@ const supplierSchema = new mongoose.Schema({
   },
   supplierPhone: {
     type: String,
-    required: [true, 'Proporcionar un número de teléfono'],
-    unique: true
+    required: [true, 'Proporcionar un número de teléfono']
   },
 
   raiseOrder: {
