@@ -27,6 +27,8 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
       populate: vi.fn().mockReturnThis(),
       sort: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
+      skip: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
       then: (onFulfilled, onRejected) => promise.then(onFulfilled, onRejected),
       catch: (onRejected) => promise.catch(onRejected)
     }
@@ -43,6 +45,8 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
       populate = vi.fn().mockImplementation(async () => ({ ...this, _id: id }))
 
       static find = vi.fn(() => makeQuery([]))
+
+      static countDocuments = vi.fn().mockResolvedValue(0)
 
       static findById = vi.fn(() => makeQuery(makeDocument()))
 
@@ -388,6 +392,93 @@ describe('HTTP endpoint coverage', () => {
       .set('Authorization', 'Bearer invalid-token')
 
     expect(response.status).toBe(401)
+  })
+
+  it('returns a bounded products page with pagination metadata', async () => {
+    const productQuery = makeQuery([{ _id: TEST_ID }])
+    ProductModel.find.mockReturnValue(productQuery)
+    ProductModel.countDocuments.mockResolvedValue(45)
+
+    const response = await request(app)
+      .get('/api/products')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ page: 2, limit: 20 })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      data: [{ _id: TEST_ID }],
+      page: 2,
+      limit: 20,
+      total: 45,
+      totalPages: 3,
+      hasNextPage: true
+    })
+    expect(ProductModel.countDocuments).toHaveBeenCalledWith({})
+    expect(productQuery.skip).toHaveBeenCalledWith(20)
+    expect(productQuery.limit).toHaveBeenCalledWith(20)
+  })
+
+  it.each([
+    ['/api/categories', CategoriesModel],
+    ['/api/suppliers', SupplierModel],
+    ['/api/users', UserModel],
+    ['/api/inventory-records/reports/low-stock', ProductModel]
+  ])('paginates %s in the backend', async (url, model) => {
+    model.find.mockReturnValueOnce(makeQuery([]))
+    model.countDocuments.mockResolvedValueOnce(41)
+
+    const response = await request(app)
+      .get(url)
+      .set('Authorization', `Bearer ${token}`)
+      .query({ page: 2, limit: 20 })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      data: [],
+      page: 2,
+      limit: 20,
+      total: 41,
+      totalPages: 3,
+      hasNextPage: true
+    })
+  })
+
+  it('applies product and user search filters before paginating', async () => {
+    ProductModel.find.mockReturnValueOnce(makeQuery([]))
+    ProductModel.countDocuments.mockResolvedValueOnce(1)
+    UserModel.find.mockReturnValueOnce(makeQuery([]))
+    UserModel.countDocuments.mockResolvedValueOnce(1)
+
+    const productResponse = await request(app)
+      .get('/api/products')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ page: 1, limit: 20, search: 'leche' })
+    const userResponse = await request(app)
+      .get('/api/users')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ page: 1, limit: 20, search: 'ana+' })
+
+    expect(productResponse.status).toBe(200)
+    expect(ProductModel.find).toHaveBeenLastCalledWith({
+      productName: { $regex: 'leche', $options: 'i' }
+    })
+    expect(userResponse.status).toBe(200)
+    expect(UserModel.find).toHaveBeenLastCalledWith({
+      $or: [
+        { username: { $regex: 'ana\\+', $options: 'i' } },
+        { fullName: { $regex: 'ana\\+', $options: 'i' } },
+        { email: { $regex: 'ana\\+', $options: 'i' } }
+      ]
+    })
+  })
+
+  it('rejects invalid pagination parameters', async () => {
+    const response = await request(app)
+      .get('/api/products')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ page: 0, limit: 20 })
+
+    expect(response.status).toBe(400)
   })
 
   it('validates date-range and inventory-type report filters', async () => {

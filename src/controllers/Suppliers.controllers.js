@@ -1,10 +1,31 @@
 import SuppliersModel from '../models/ Suppliers.models.js'
 import { isValidObjectId } from 'mongoose'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 
 const getSuppliers = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
   try {
-    const data = await SuppliersModel.find()
-    res.status(200).json(data)
+    const query = SuppliersModel.find()
+    if (!pagination.requested) {
+      const data = await query
+      return res.status(200).json(data)
+    }
+
+    const [data, total] = await Promise.all([
+      query
+        .sort({ suppliersName: 1 })
+        .skip(pagination.skip)
+        .limit(pagination.limit),
+      SuppliersModel.countDocuments()
+    ])
+
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
     res.status(500).json({
       message: 'Error al cargar los proveedores',

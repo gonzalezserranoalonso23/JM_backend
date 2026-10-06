@@ -1,10 +1,31 @@
 import CategoriesModel from '../models/Categories.models.js'
 import { isValidObjectId } from 'mongoose'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 
 const getCategories = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
   try {
-    const data = await CategoriesModel.find()
-    res.status(200).json(data)
+    const query = CategoriesModel.find()
+    if (!pagination.requested) {
+      const data = await query
+      return res.status(200).json(data)
+    }
+
+    const [data, total] = await Promise.all([
+      query
+        .sort({ categories: 1 })
+        .skip(pagination.skip)
+        .limit(pagination.limit),
+      CategoriesModel.countDocuments()
+    ])
+
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
     res
       .status(500)

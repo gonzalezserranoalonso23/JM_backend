@@ -2,6 +2,7 @@ import InventoryRecord from '../models/InventoryRecord.models.js'
 import Product from '../models/Products.models.js'
 import DailyInformation from '../models/DailyInformation.models.js'
 import { isValidObjectId } from 'mongoose'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 
 const ENTRY_TYPE = 'ENTRY'
 const ISSUE_TYPE = 'ISSUE'
@@ -349,16 +350,33 @@ const getDailySalesSummary = async (req, res) => {
 }
 
 const getLowStockProducts = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
   try {
-    const products = await Product.find()
-      .populate('category')
-      .populate('supplier')
+    const filter = {
+      $expr: { $lte: ['$productStock', '$minimumProductStock'] }
+    }
+    const query = Product.find(filter).populate('category').populate('supplier')
 
-    const lowStockProducts = products.filter(
-      (p) => p.productStock <= p.minimumProductStock
-    )
+    if (!pagination.requested) {
+      const products = await query
+      return res.status(200).json(products)
+    }
 
-    res.status(200).json(lowStockProducts)
+    const [products, total] = await Promise.all([
+      query
+        .sort({ productName: 1 })
+        .skip(pagination.skip)
+        .limit(pagination.limit),
+      Product.countDocuments(filter)
+    ])
+
+    return res
+      .status(200)
+      .json(createPaginatedResponse(products, total, pagination))
   } catch (error) {
     res.status(500).json({
       message: 'Error al obtener productos con stock bajo',

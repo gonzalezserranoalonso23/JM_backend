@@ -1,12 +1,42 @@
 import ProductsModel from '../models/Products.models.js'
 import { isValidObjectId } from 'mongoose'
+import {
+  createPaginatedResponse,
+  escapeRegex,
+  getPagination
+} from '../utils/pagination.js'
 
 const getProducts = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
   try {
-    const data = await ProductsModel.find()
+    const search = req.query?.search?.trim()
+    const filter = search
+      ? { productName: { $regex: escapeRegex(search), $options: 'i' } }
+      : {}
+    const query = ProductsModel.find(filter)
       .populate('category', { __v: 0 })
       .populate('supplier', { __v: 0 })
-    res.status(200).json(data)
+
+    if (!pagination.requested) {
+      const data = await query
+      return res.status(200).json(data)
+    }
+
+    const [data, total] = await Promise.all([
+      query
+        .sort({ productName: 1 })
+        .skip(pagination.skip)
+        .limit(pagination.limit),
+      ProductsModel.countDocuments(filter)
+    ])
+
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
     res
       .status(500)

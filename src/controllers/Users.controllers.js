@@ -3,12 +3,43 @@ import bcrypt from 'bcryptjs'
 import UserModel from '../models/Users.models.js'
 import { isValidObjectId } from 'mongoose'
 import dotenv from 'dotenv'
+import {
+  createPaginatedResponse,
+  escapeRegex,
+  getPagination
+} from '../utils/pagination.js'
 dotenv.config()
 
 const getUsers = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
   try {
-    const data = await UserModel.find().select('-password')
-    res.status(200).json(data)
+    const search = req.query?.search?.trim()
+    const filter = search
+      ? {
+          $or: ['username', 'fullName', 'email'].map((field) => ({
+            [field]: { $regex: escapeRegex(search), $options: 'i' }
+          }))
+        }
+      : {}
+    const query = UserModel.find(filter).select('-password')
+
+    if (!pagination.requested) {
+      const data = await query
+      return res.status(200).json(data)
+    }
+
+    const [data, total] = await Promise.all([
+      query.sort({ username: 1 }).skip(pagination.skip).limit(pagination.limit),
+      UserModel.countDocuments(filter)
+    ])
+
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
     res
       .status(500)
