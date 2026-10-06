@@ -62,6 +62,7 @@ import UserModel from '../src/models/Users.models.js'
 import {
   createInventoryRecord,
   getDailySalesSummary,
+  getLowStockProducts,
   getInventoryStats
 } from '../src/controllers/InventoryRecord.controllers.js'
 import { loginUser } from '../src/controllers/Users.controllers.js'
@@ -319,7 +320,8 @@ describe('Business logic tests', () => {
     Product.find.mockResolvedValue([
       { productStock: 10, productPrice: 4, minimumProductStock: 5 },
       { productStock: 2, productPrice: 20, minimumProductStock: 3 },
-      { productStock: 0, productPrice: 8, minimumProductStock: 1 }
+      { productStock: 0, productPrice: 8, minimumProductStock: 1 },
+      { productStock: 5, productPrice: 1, minimumProductStock: 5 }
     ])
     InventoryRecordModel.find.mockResolvedValue([
       { typeInventory: 'ENTRY', totalAmount: 40 },
@@ -331,12 +333,28 @@ describe('Business logic tests', () => {
 
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith({
-      totalProducts: 3,
-      totalInventoryValue: 80,
+      totalProducts: 4,
+      totalInventoryValue: 85,
       lowStockProducts: 2,
       outOfStockProducts: 1,
       totalSalesValue: 20,
       totalMovements: 3
     })
+  })
+
+  it('lists only products below their minimum stock', async () => {
+    const query = {
+      populate: vi.fn().mockReturnThis(),
+      then: (resolve) => Promise.resolve([]).then(resolve)
+    }
+    Product.find.mockReturnValue(query)
+    const res = mockRes()
+
+    await getLowStockProducts({ query: {} }, res)
+
+    expect(Product.find).toHaveBeenCalledWith({
+      $expr: { $lt: ['$productStock', '$minimumProductStock'] }
+    })
+    expect(res.status).toHaveBeenCalledWith(200)
   })
 })

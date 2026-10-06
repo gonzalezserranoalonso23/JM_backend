@@ -357,7 +357,7 @@ const getLowStockProducts = async (req, res) => {
 
   try {
     const filter = {
-      $expr: { $lte: ['$productStock', '$minimumProductStock'] }
+      $expr: { $lt: ['$productStock', '$minimumProductStock'] }
     }
     const query = Product.find(filter).populate('category').populate('supplier')
 
@@ -479,7 +479,7 @@ const getInventoryStats = async (req, res) => {
       0
     )
     const lowStockCount = allProducts.filter(
-      (p) => p.productStock <= p.minimumProductStock
+      (p) => p.productStock < p.minimumProductStock
     ).length
     const zeroStockCount = allProducts.filter(
       (p) => p.productStock === 0
