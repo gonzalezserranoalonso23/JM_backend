@@ -5,7 +5,7 @@ const getTypeInventories = (req, res) => {
   TypeInventory.find()
     .then((data) => res.status(200).json(data))
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Hubo un error al cargar los tipos de inventario!',
         error
       })
@@ -15,11 +15,17 @@ const getTypeInventories = (req, res) => {
 const getTypeInventory = (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
+    return res.status(400).json({ message: 'ID inválido' })
   TypeInventory.findById(id)
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Tipo de inventario no encontrado' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Hubo un error al cargar el tipo de inventario!',
         error
       })
@@ -35,7 +41,7 @@ const createTypeInventory = (req, res) => {
     .save()
     .then((data) => res.status(201).json(data))
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Ha ocurrido un error al crear el tipo de inventario ',
         error
       })
@@ -46,9 +52,7 @@ const updateTypeInventory = (req, res) => {
   const { id } = req.params
   const { typeInventory } = req.body
   if (!isValidObjectId(id))
-    return res.status(501).json({
-      messsage: 'Ha ocurrido un error en la peticion'
-    })
+    return res.status(400).json({ message: 'ID inválido' })
   TypeInventory.findOneAndUpdate(
     { _id: id },
     {
@@ -56,9 +60,15 @@ const updateTypeInventory = (req, res) => {
     },
     { new: true }
   )
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Tipo de inventario no encontrado' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Ha ocurrido un error al actualizar el tipo de inventario',
         error
       })
@@ -68,16 +78,20 @@ const updateTypeInventory = (req, res) => {
 const deleteTypeInventory = (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
+    return res.status(400).json({ message: 'ID inválido' })
 
   TypeInventory.deleteOne({ _id: id })
-    .then(() =>
+    .then((result) => {
+      if (result.deletedCount === 0)
+        return res
+          .status(404)
+          .json({ message: 'Tipo de inventario no encontrado' })
       res
-        .status(201)
+        .status(200)
         .json({ message: 'El tipo de inventario se ha borrado exitosamente!' })
-    )
+    })
     .catch((error) =>
-      res.status(505).json({
+      res.status(500).json({
         message: 'Hubo un error al intentar borrar el tipo de inventario ',
         error
       })

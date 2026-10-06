@@ -6,7 +6,7 @@ const getDailyInformations = (req, res) => {
   DailyInformation.find()
     .then((data) => res.status(200).json(data))
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Hubo un error al cargar las informaciones diarias!',
         error
       })
@@ -16,11 +16,17 @@ const getDailyInformations = (req, res) => {
 const getDailyInformation = (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
+    return res.status(400).json({ message: 'ID inválido' })
   DailyInformation.findById(id)
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Información diaria no encontrada' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Hubo un error al cargar la información diaria!',
         error
       })
@@ -41,7 +47,7 @@ const createDailyInformation = (req, res) => {
     .save()
     .then((data) => res.status(201).json(data))
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Ha ocurrido un error al crear la información diaria ',
         error
       })
@@ -52,9 +58,7 @@ const updateDailyInformation = (req, res) => {
   const { id } = req.params
   const { date, cashSales, cardSales, totalSales, totalTransactions } = req.body
   if (!isValidObjectId(id))
-    return res.status(501).json({
-      messsage: 'Ha ocurrido un error en la peticion'
-    })
+    return res.status(400).json({ message: 'ID inválido' })
   DailyInformation.findOneAndUpdate(
     { _id: id },
     {
@@ -66,9 +70,15 @@ const updateDailyInformation = (req, res) => {
     },
     { new: true }
   )
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Información diaria no encontrada' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Ha ocurrido un error al actualizar la información diaria',
         error
       })
@@ -78,13 +88,17 @@ const updateDailyInformation = (req, res) => {
 const deleteDailyInformation = (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({
-      messsage: 'Ha ocurrido un error en la peticion'
-    })
+    return res.status(400).json({ message: 'ID inválido' })
   DailyInformation.findOneAndDelete({ _id: id })
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Información diaria no encontrada' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Ha ocurrido un error al eliminar la información diaria',
         error
       })

@@ -1,4 +1,5 @@
 import Task from '../models/Tasks.models.js'
+import { isValidObjectId } from 'mongoose'
 
 export const getTasks = async (req, res) => {
   try {
@@ -14,6 +15,10 @@ export const getTasks = async (req, res) => {
 }
 
 export const getTask = async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({ message: 'ID inválido' })
+  }
+
   try {
     const task = await Task.findById(req.params.id)
       .populate('createdBy', 'username email fullName')
@@ -65,6 +70,10 @@ export const updateTask = async (req, res) => {
     const { title, description, priority, status } = req.body
     const userId = req.user.id
 
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: 'ID inválido' })
+    }
+
     const task = await Task.findById(id)
     if (!task) {
       return res.status(404).json({ message: 'Tarea no encontrada' })
@@ -100,6 +109,10 @@ export const updateTask = async (req, res) => {
 export const deleteTask = async (req, res) => {
   try {
     const { id } = req.params
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: 'ID inválido' })
+    }
 
     const task = await Task.findByIdAndDelete(id)
 

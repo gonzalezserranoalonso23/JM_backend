@@ -37,14 +37,20 @@ const getInventoryRecords = (req, res) => {
 const getInventoryRecord = (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
+    return res.status(400).json({ message: 'ID inválido' })
   InventoryRecord.findById(id)
     .populate('category', { __v: 0 })
     .populate('productName', { __v: 0 })
     .populate('User', { __v: 0, password: 0 })
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Registro de inventario no encontrado' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message: 'Hubo un error el registro de inventario!',
         error
       })
@@ -247,9 +253,7 @@ const updateInventoryRecord = (req, res) => {
     Observations
   } = req.body
   if (!isValidObjectId(id))
-    return res.status(501).json({
-      messsage: 'Ha ocurrido un error en la peticion'
-    })
+    return res.status(400).json({ message: 'ID inválido' })
   const normalizedType = normalizeInventoryType(typeInventory)
   if (!normalizedType)
     return res.status(400).json({
@@ -270,9 +274,15 @@ const updateInventoryRecord = (req, res) => {
     },
     { new: true }
   )
-    .then((data) => res.status(200).json(data))
+    .then((data) => {
+      if (!data)
+        return res
+          .status(404)
+          .json({ message: 'Registro de inventario no encontrado' })
+      res.status(200).json(data)
+    })
     .catch((error) =>
-      res.status(501).json({
+      res.status(500).json({
         message:
           'Ha ocurrido un error al actualizar el registro de inventario !  ',
         error
@@ -283,16 +293,20 @@ const updateInventoryRecord = (req, res) => {
 const deleteInventoryRecord = (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
-    return res.status(501).json({ message: 'Hubo un error en la petición' })
+    return res.status(400).json({ message: 'ID inválido' })
 
   InventoryRecord.deleteOne({ _id: id })
-    .then(() =>
-      res.status(201).json({
+    .then((result) => {
+      if (result.deletedCount === 0)
+        return res
+          .status(404)
+          .json({ message: 'Registro de inventario no encontrado' })
+      res.status(200).json({
         message: 'El registro de inventario se ha borrado exitosamente!'
       })
-    )
+    })
     .catch((error) =>
-      res.status(505).json({
+      res.status(500).json({
         message: 'Hubo un error al intentar borrar el registro de inventario  ',
         error
       })
