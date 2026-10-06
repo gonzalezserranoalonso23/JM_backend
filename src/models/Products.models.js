@@ -36,6 +36,10 @@ const ProductSchema = new mongoose.Schema({
     type: mongoose.SchemaTypes.ObjectId,
     ref: 'Category',
     required: [true, 'Proporcionar una categoría es obligatorio']
+  },
+  isActive: {
+    type: Boolean,
+    default: true
   }
 })
 

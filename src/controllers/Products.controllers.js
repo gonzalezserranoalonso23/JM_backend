@@ -71,7 +71,8 @@ const createProduct = async (req, res) => {
     minimumProductStock,
     productStock,
     supplier,
-    category
+    category,
+    isActive
   } = req.body
   if (!productName)
     return res
@@ -102,7 +103,8 @@ const createProduct = async (req, res) => {
       minimumProductStock,
       productStock,
       supplier,
-      category
+      category,
+      isActive
     })
     const data = await newProduct.save()
     res.status(201).json(data)
@@ -123,7 +125,8 @@ const updateProduct = async (req, res) => {
     productStock,
     minimumProductStock,
     supplier,
-    category
+    category,
+    isActive
   } = req.body
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
@@ -140,7 +143,8 @@ const updateProduct = async (req, res) => {
         productStock,
         minimumProductStock,
         supplier,
-        category
+        category,
+        isActive
       },
       { new: true }
     )
