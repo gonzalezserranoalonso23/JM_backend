@@ -331,6 +331,7 @@ describe('Business logic tests', () => {
 
     await getInventoryStats({}, res)
 
+    expect(Product.find).toHaveBeenCalledWith({ isActive: { $ne: false } })
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith({
       totalProducts: 4,
@@ -353,6 +354,7 @@ describe('Business logic tests', () => {
     await getLowStockProducts({ query: {} }, res)
 
     expect(Product.find).toHaveBeenCalledWith({
+      isActive: { $ne: false },
       $expr: { $lt: ['$productStock', '$minimumProductStock'] }
     })
     expect(res.status).toHaveBeenCalledWith(200)

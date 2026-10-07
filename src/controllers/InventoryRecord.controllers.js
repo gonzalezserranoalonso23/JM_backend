@@ -357,6 +357,7 @@ const getLowStockProducts = async (req, res) => {
 
   try {
     const filter = {
+      isActive: { $ne: false },
       $expr: { $lt: ['$productStock', '$minimumProductStock'] }
     }
     const query = Product.find(filter).populate('category').populate('supplier')
@@ -470,7 +471,7 @@ const getInventoryByType = async (req, res) => {
 
 const getInventoryStats = async (req, res) => {
   try {
-    const allProducts = await Product.find()
+    const allProducts = await Product.find({ isActive: { $ne: false } })
     const allRecords = await InventoryRecord.find()
 
     const totalProducts = allProducts.length
