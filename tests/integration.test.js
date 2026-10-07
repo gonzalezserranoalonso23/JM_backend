@@ -48,7 +48,10 @@ beforeAll(async () => {
     isAdmin: true
   })
   userId = String(user._id)
-  auth = jwt.sign({ id: userId, username: 'admin' }, process.env.SECURITY_JM)
+  auth = jwt.sign(
+    { id: userId, username: 'admin', isAdmin: true },
+    process.env.SECURITY_JM
+  )
 }, 120000)
 
 afterAll(async () => {
@@ -355,5 +358,59 @@ describe('Integración con MongoDB real', () => {
     }
     expect((await api('post', '/api/products').send({})).status).toBe(400)
     expect((await api('post', '/api/orders').send({})).status).toBe(400)
+  })
+})
+
+describe('Autenticación y roles', () => {
+  const userToken = () =>
+    jwt.sign(
+      { id: userId, username: 'user', isAdmin: false },
+      process.env.SECURITY_JM
+    )
+  const as = (token, method, url) =>
+    request(app)
+      [method](url)
+      .set('Authorization', 'Bearer ' + token)
+
+  it('rechaza sin token, token inválido y esquema incorrecto', async () => {
+    expect((await request(app).get('/api/products')).status).toBe(401)
+    expect((await as('basura', 'get', '/api/products')).status).toBe(401)
+    const bad = await request(app)
+      .get('/api/products')
+      .set('Authorization', 'Token ' + auth)
+    expect(bad.status).toBe(401)
+  })
+
+  it('user puede leer y crear pero no borrar ni gestionar usuarios', async () => {
+    const t = userToken()
+    expect((await as(t, 'get', '/api/products')).status).toBe(200)
+    const created = await as(t, 'post', '/api/categories').send({
+      categories: 'Roles'
+    })
+    expect(created.status).toBe(201)
+    expect(
+      (await as(t, 'delete', `/api/categories/${created.body._id}`)).status
+    ).toBe(403)
+    expect((await as(t, 'get', '/api/users')).status).toBe(403)
+    expect((await as(t, 'post', '/api/users/register').send({})).status).toBe(
+      403
+    )
+    expect(
+      (await api('delete', `/api/categories/${created.body._id}`)).status
+    ).toBe(200)
+  })
+
+  it('login incluye isAdmin en el JWT', async () => {
+    await mongoose.model('User').create({
+      username: 'jwtadmin',
+      password: await (await import('bcryptjs')).default.hash('pw12345', 4),
+      email: 'jwt@jm.test',
+      isAdmin: true
+    })
+    const res = await request(app)
+      .post('/api/users/login')
+      .send({ username: 'jwtadmin', password: 'pw12345' })
+    expect(res.status).toBe(200)
+    expect(jwt.decode(res.body.token).isAdmin).toBe(true)
   })
 })

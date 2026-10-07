@@ -287,7 +287,7 @@ describe('HTTP endpoint coverage', () => {
   beforeAll(() => {
     process.env.SECURITY_JM = 'endpoint-test-secret'
     token = jwt.sign(
-      { id: TEST_ID, username: 'test-user' },
+      { id: TEST_ID, username: 'test-user', isAdmin: true },
       process.env.SECURITY_JM
     )
   })

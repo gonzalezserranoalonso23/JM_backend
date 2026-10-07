@@ -108,7 +108,7 @@ describe('Business logic tests', () => {
 
     expect(res.status).toHaveBeenCalledWith(200)
     expect(jwt.sign).toHaveBeenCalledWith(
-      { id: '507f1f77bcf86cd799439013', username: 'admin' },
+      { id: '507f1f77bcf86cd799439013', username: 'admin', isAdmin: true },
       process.env.SECURITY_JM,
       { expiresIn: '7d' }
     )

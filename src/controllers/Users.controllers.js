@@ -82,7 +82,11 @@ const loginUser = async (req, res) => {
         .json({ message: 'Usuario y/o contraseña no válida' })
 
     const token = jwt.sign(
-      { id: existUser._id, username: existUser.username },
+      {
+        id: existUser._id,
+        username: existUser.username,
+        isAdmin: existUser.isAdmin === true
+      },
       process.env.SECURITY_JM,
       { expiresIn: '7d' }
     )

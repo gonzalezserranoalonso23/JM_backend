@@ -12,7 +12,7 @@ import {
   getInventoryByType,
   getInventoryStats
 } from '../controllers/InventoryRecord.controllers.js'
-import verifyToken from '../middlewares/verifyToken.js'
+import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
 
 const router = Router()
 
@@ -26,6 +26,6 @@ router.get('/:id', verifyToken, getInventoryRecord)
 router.post('/bulk', verifyToken, createInventoryRecords)
 router.post('/', verifyToken, createInventoryRecord)
 router.put('/:id', verifyToken, updateInventoryRecord)
-router.delete('/:id', verifyToken, deleteInventoryRecord)
+router.delete('/:id', verifyToken, requireAdmin, deleteInventoryRecord)
 
 export default router

@@ -6,7 +6,7 @@ import {
   updateOrder,
   deleteOrder
 } from '../controllers/Orders.controllers.js'
-import verifyToken from '../middlewares/verifyToken.js'
+import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
 
 const router = Router()
 
@@ -14,6 +14,6 @@ router.get('/', verifyToken, getOrders)
 router.get('/:id', verifyToken, getOrder)
 router.post('/', verifyToken, createOrder)
 router.put('/:id', verifyToken, updateOrder)
-router.delete('/:id', verifyToken, deleteOrder)
+router.delete('/:id', verifyToken, requireAdmin, deleteOrder)
 
 export default router

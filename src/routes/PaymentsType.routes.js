@@ -6,7 +6,7 @@ import {
   updatePaymentType,
   deletePaymentType
 } from '../controllers/PaymentsType.controllers.js'
-import verifyToken from '../middlewares/verifyToken.js'
+import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
 
 const router = Router()
 
@@ -14,6 +14,6 @@ router.get('/', verifyToken, getPaymentTypes)
 router.get('/:id', verifyToken, getPaymentType)
 router.post('/', verifyToken, createPaymentType)
 router.put('/:id', verifyToken, updatePaymentType)
-router.delete('/:id', verifyToken, deletePaymentType)
+router.delete('/:id', verifyToken, requireAdmin, deletePaymentType)
 
 export default router
