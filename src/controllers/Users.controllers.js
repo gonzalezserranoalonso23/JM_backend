@@ -134,11 +134,17 @@ const updateUser = async (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   const { username, password, email, fullName, isAdmin } = req.body
   try {
-    const passCrypt = await bcrypt.hash(password, 10)
+    // La contraseña es opcional al editar; solo se actualizan los campos enviados.
+    const update = Object.fromEntries(
+      Object.entries({ username, email, fullName, isAdmin }).filter(
+        ([, value]) => value !== undefined
+      )
+    )
+    if (password) update.password = await bcrypt.hash(password, 10)
     const data = await UserModel.findOneAndUpdate(
       { _id: id },
-      { username, password: passCrypt, email, fullName, isAdmin },
-      { new: true }
+      { $set: update },
+      { new: true, runValidators: true }
     ).select('-password')
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)

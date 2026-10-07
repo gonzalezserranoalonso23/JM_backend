@@ -1,4 +1,6 @@
 import ProductsModel from '../models/Products.models.js'
+import SuppliersModel from '../models/ Suppliers.models.js'
+import CategoriesModel from '../models/Categories.models.js'
 import { isValidObjectId } from 'mongoose'
 import {
   createPaginatedResponse,
@@ -14,9 +16,21 @@ const getProducts = async (req, res) => {
 
   try {
     const search = req.query?.search?.trim()
-    const filter = search
-      ? { productName: { $regex: escapeRegex(search), $options: 'i' } }
-      : {}
+    let filter = {}
+    if (search) {
+      const regex = { $regex: escapeRegex(search), $options: 'i' }
+      const [suppliers, categories] = await Promise.all([
+        SuppliersModel.find({ suppliersName: regex }, { _id: 1 }).lean(),
+        CategoriesModel.find({ categories: regex }, { _id: 1 }).lean()
+      ])
+      filter = {
+        $or: [
+          { productName: regex },
+          { supplier: { $in: suppliers.map((item) => item._id) } },
+          { category: { $in: categories.map((item) => item._id) } }
+        ]
+      }
+    }
     const query = ProductsModel.find(filter)
       .populate('category', { __v: 0 })
       .populate('supplier', { __v: 0 })

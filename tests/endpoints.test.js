@@ -27,6 +27,7 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
       populate: vi.fn().mockReturnThis(),
       sort: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
+      lean: vi.fn().mockReturnThis(),
       skip: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       then: (onFulfilled, onRejected) => promise.then(onFulfilled, onRejected),
@@ -446,6 +447,8 @@ describe('HTTP endpoint coverage', () => {
   it('applies product and user search filters before paginating', async () => {
     ProductModel.find.mockReturnValueOnce(makeQuery([]))
     ProductModel.countDocuments.mockResolvedValueOnce(1)
+    SupplierModel.find.mockReturnValueOnce(makeQuery([{ _id: 'sup1' }]))
+    CategoriesModel.find.mockReturnValueOnce(makeQuery([{ _id: 'cat1' }]))
     UserModel.find.mockReturnValueOnce(makeQuery([]))
     UserModel.countDocuments.mockResolvedValueOnce(1)
 
@@ -460,7 +463,11 @@ describe('HTTP endpoint coverage', () => {
 
     expect(productResponse.status).toBe(200)
     expect(ProductModel.find).toHaveBeenLastCalledWith({
-      productName: { $regex: 'leche', $options: 'i' }
+      $or: [
+        { productName: { $regex: 'leche', $options: 'i' } },
+        { supplier: { $in: ['sup1'] } },
+        { category: { $in: ['cat1'] } }
+      ]
     })
     expect(userResponse.status).toBe(200)
     expect(UserModel.find).toHaveBeenLastCalledWith({
