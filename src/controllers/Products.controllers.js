@@ -34,6 +34,7 @@ const getProducts = async (req, res) => {
     const query = ProductsModel.find(filter)
       .populate('category', { __v: 0 })
       .populate('supplier', { __v: 0 })
+      .lean()
 
     if (!pagination.requested) {
       const data = await query

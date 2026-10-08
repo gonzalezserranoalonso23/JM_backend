@@ -315,7 +315,8 @@ describe('Controller smoke tests', () => {
 
   it('lists products', async () => {
     const query = {
-      populate: vi.fn().mockReturnThis()
+      populate: vi.fn().mockReturnThis(),
+      lean: vi.fn().mockResolvedValue([{ _id: 'p-1' }])
     }
     ProductModel.find.mockReturnValue(query)
 
@@ -323,6 +324,8 @@ describe('Controller smoke tests', () => {
     await getProducts({}, res)
 
     expect(res.status).toHaveBeenCalledWith(200)
+    expect(query.lean).toHaveBeenCalled()
+    expect(res.json).toHaveBeenCalledWith([{ _id: 'p-1' }])
   })
 
   it('lists suppliers', async () => {
