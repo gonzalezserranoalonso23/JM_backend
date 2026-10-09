@@ -110,7 +110,7 @@ describe('Business logic tests', () => {
     expect(jwt.sign).toHaveBeenCalledWith(
       { id: '507f1f77bcf86cd799439013', username: 'admin', isAdmin: true },
       process.env.SECURITY_JM,
-      { expiresIn: '7d' }
+      { expiresIn: '1d' }
     )
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -358,5 +358,36 @@ describe('Business logic tests', () => {
       $expr: { $lt: ['$productStock', '$minimumProductStock'] }
     })
     expect(res.status).toHaveBeenCalledWith(200)
+  })
+})
+
+describe('Seguridad del login', () => {
+  it('con recuérdame el token dura 7 días', async () => {
+    const res = mockRes()
+    UserModel.findOne.mockResolvedValue({
+      _id: '507f1f77bcf86cd799439013',
+      username: 'admin',
+      password: 'hashed-pass',
+      isAdmin: false
+    })
+    bcrypt.compare.mockResolvedValue(true)
+    await loginUser(
+      { body: { username: 'admin', password: 'x', remember: true } },
+      res
+    )
+    expect(jwt.sign).toHaveBeenCalledWith(
+      expect.any(Object),
+      process.env.SECURITY_JM,
+      { expiresIn: '7d' }
+    )
+  })
+
+  it('rechaza username que no es texto (inyección de operadores)', async () => {
+    const res = mockRes()
+    await loginUser(
+      { body: { username: { $regex: '^a' }, password: 'x' } },
+      res
+    )
+    expect(res.status).toHaveBeenCalledWith(400)
   })
 })

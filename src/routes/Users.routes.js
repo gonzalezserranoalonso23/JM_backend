@@ -7,11 +7,20 @@ import {
   updateUser,
   deleteUser
 } from '../controllers/Users.controllers.js'
+import rateLimit from 'express-rate-limit'
 import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
 
 const router = Router()
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { message: 'Demasiados intentos, intenta más tarde' }
+})
 // path login, loginUser controller to validate login
-router.post('/login', loginUser)
+router.post('/login', loginLimiter, loginUser)
 // path users/login, registerUser controller to register in database
 router.post('/register', verifyToken, requireAdmin, registerUser)
 // path users/register, getUsers controlller to get all users

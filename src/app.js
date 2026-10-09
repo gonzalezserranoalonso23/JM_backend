@@ -3,6 +3,7 @@ import cors from 'cors'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
 import compression from 'compression'
+import helmet from 'helmet'
 
 const app = express()
 
@@ -21,16 +22,10 @@ import TasksRouter from './routes/Tasks.routes.js'
 dotenv.config()
 app.use(morgan('tiny'))
 app.disable('x-powered-by')
+app.use(helmet())
 app.use(compression())
-app.use(express.json())
-const allowedOrigins = [
-  process.env.CLIENT,
-  process.env.DEV,
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
-]
+app.use(express.json({ limit: '1mb' }))
+const allowedOrigins = [process.env.CLIENT, process.env.DEV]
   .filter(Boolean)
   .map((origin) => origin.trim().replace(/\/+$/, ''))
 const corsOptions = {

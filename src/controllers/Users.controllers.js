@@ -63,11 +63,13 @@ const getUser = async (req, res) => {
 }
 
 const loginUser = async (req, res) => {
-  const { username, password } = req.body
+  const { username, password, remember } = req.body
   if (!username || !password)
     return res
       .status(400)
       .json({ message: 'Usuario y contraseña son requeridos' })
+  if (typeof username !== 'string' || typeof password !== 'string')
+    return res.status(400).json({ message: 'Datos inválidos' })
   try {
     const existUser = await UserModel.findOne({ username })
     if (!existUser)
@@ -88,7 +90,7 @@ const loginUser = async (req, res) => {
         isAdmin: existUser.isAdmin === true
       },
       process.env.SECURITY_JM,
-      { expiresIn: '7d' }
+      { expiresIn: remember === true ? '7d' : '1d' }
     )
     res
       .status(200)
@@ -121,7 +123,7 @@ const registerUser = async (req, res) => {
       password: passCrypt,
       email,
       fullName,
-      isAdmin
+      isAdmin: isAdmin === true
     })
     const saved = await newUser.save()
     res.status(201).json({ username: saved.username })
@@ -140,9 +142,12 @@ const updateUser = async (req, res) => {
   try {
     // La contraseña es opcional al editar; solo se actualizan los campos enviados.
     const update = Object.fromEntries(
-      Object.entries({ username, email, fullName, isAdmin }).filter(
-        ([, value]) => value !== undefined
-      )
+      Object.entries({
+        username,
+        email,
+        fullName,
+        isAdmin: isAdmin === undefined ? undefined : isAdmin === true
+      }).filter(([, value]) => value !== undefined)
     )
     if (password) update.password = await bcrypt.hash(password, 10)
     const data = await UserModel.findOneAndUpdate(
