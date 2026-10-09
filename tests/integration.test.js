@@ -308,6 +308,24 @@ describe('Integración con MongoDB real', () => {
     const low = await api('get', '/api/inventory-records/reports/low-stock')
     expect(JSON.stringify(low.body)).not.toContain(product._id)
 
+    // Búsqueda en stock bajo (activo de nuevo, con stock bajo el mínimo)
+    await api('put', `/api/products/${product._id}`).send({
+      isActive: true,
+      productStock: 0,
+      minimumProductStock: 5
+    })
+    const hit = await api(
+      'get',
+      '/api/inventory-records/reports/low-stock?page=1&limit=20&search=LECHE'
+    )
+    expect(hit.body.data.map((p) => p._id)).toContain(product._id)
+    const miss = await api(
+      'get',
+      '/api/inventory-records/reports/low-stock?page=1&limit=20&search=zzzz'
+    )
+    expect(miss.body.data).toEqual([])
+    await api('put', `/api/products/${product._id}`).send({ isActive: false })
+
     // Órdenes
     const order = await api('post', '/api/orders').send({
       date: '2026-10-06',

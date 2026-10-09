@@ -2,7 +2,11 @@ import InventoryRecord from '../models/InventoryRecord.models.js'
 import Product from '../models/Products.models.js'
 import DailyInformation from '../models/DailyInformation.models.js'
 import { isValidObjectId } from 'mongoose'
-import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
+import {
+  createPaginatedResponse,
+  escapeRegex,
+  getPagination
+} from '../utils/pagination.js'
 
 const ENTRY_TYPE = 'ENTRY'
 const ISSUE_TYPE = 'ISSUE'
@@ -359,6 +363,12 @@ const getLowStockProducts = async (req, res) => {
     const filter = {
       isActive: { $ne: false },
       $expr: { $lt: ['$productStock', '$minimumProductStock'] }
+    }
+    const search =
+      typeof req.query?.search === 'string' ? req.query.search.trim() : ''
+    if (search) {
+      const regex = { $regex: escapeRegex(search), $options: 'i' }
+      filter.$or = [{ productName: regex }, { productDescription: regex }]
     }
     const query = Product.find(filter).populate('category').populate('supplier')
 
