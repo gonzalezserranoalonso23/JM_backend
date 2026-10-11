@@ -4,7 +4,6 @@ import CategoriesRouter from '../src/routes/Categories.routes.js'
 import DailyInformationRouter from '../src/routes/DailyInformation.routes.js'
 import InventoryRecordRouter from '../src/routes/InventoryRecord.routes.js'
 import OrdersRouter from '../src/routes/Orders.routes.js'
-import PaymentsTypeRouter from '../src/routes/PaymentsType.routes.js'
 import ProductsRouter from '../src/routes/Products.routes.js'
 import SuppliersRouter from '../src/routes/Suppliers.routes.js'
 import TasksRouter from '../src/routes/Tasks.routes.js'
@@ -88,18 +87,6 @@ describe('Route registration smoke tests', () => {
 
   it('declares all type inventory routes', () => {
     expect(getRoutes(TypeInventoryRouter)).toEqual(
-      expect.arrayContaining([
-        { method: 'GET', path: '/' },
-        { method: 'GET', path: '/:id' },
-        { method: 'POST', path: '/' },
-        { method: 'PUT', path: '/:id' },
-        { method: 'DELETE', path: '/:id' }
-      ])
-    )
-  })
-
-  it('declares all payment type routes', () => {
-    expect(getRoutes(PaymentsTypeRouter)).toEqual(
       expect.arrayContaining([
         { method: 'GET', path: '/' },
         { method: 'GET', path: '/:id' },

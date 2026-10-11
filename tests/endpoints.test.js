@@ -85,9 +85,6 @@ vi.mock('../src/models/InventoryRecord.models.js', () => ({
   default: makeModel()
 }))
 vi.mock('../src/models/Orders.models.js', () => ({ default: makeModel() }))
-vi.mock('../src/models/PaymentsType.models.js', () => ({
-  default: makeModel()
-}))
 vi.mock('../src/models/Products.models.js', () => ({ default: makeModel() }))
 vi.mock('../src/models/ Suppliers.models.js', () => ({
   default: makeModel()
@@ -102,7 +99,6 @@ import CategoriesRouter from '../src/routes/Categories.routes.js'
 import DailyInformationRouter from '../src/routes/DailyInformation.routes.js'
 import InventoryRecordRouter from '../src/routes/InventoryRecord.routes.js'
 import OrdersRouter from '../src/routes/Orders.routes.js'
-import PaymentsTypeRouter from '../src/routes/PaymentsType.routes.js'
 import ProductsRouter from '../src/routes/Products.routes.js'
 import SuppliersRouter from '../src/routes/Suppliers.routes.js'
 import TasksRouter from '../src/routes/Tasks.routes.js'
@@ -112,7 +108,6 @@ import CategoriesModel from '../src/models/Categories.models.js'
 import DailyInformationModel from '../src/models/DailyInformation.models.js'
 import InventoryRecordModel from '../src/models/InventoryRecord.models.js'
 import OrdersModel from '../src/models/Orders.models.js'
-import PaymentTypeModel from '../src/models/PaymentsType.models.js'
 import ProductModel from '../src/models/Products.models.js'
 import SupplierModel from '../src/models/ Suppliers.models.js'
 import TaskModel from '../src/models/Tasks.models.js'
@@ -125,7 +120,6 @@ const routers = [
   ['/api/daily-information', DailyInformationRouter],
   ['/api/inventory-records', InventoryRecordRouter],
   ['/api/orders', OrdersRouter],
-  ['/api/payment-types', PaymentsTypeRouter],
   ['/api/products', ProductsRouter],
   ['/api/suppliers', SuppliersRouter],
   ['/api/tasks', TasksRouter],
@@ -161,7 +155,6 @@ const modelsByPrefix = {
   '/api/daily-information': DailyInformationModel,
   '/api/inventory-records': InventoryRecordModel,
   '/api/orders': OrdersModel,
-  '/api/payment-types': PaymentTypeModel,
   '/api/products': ProductModel,
   '/api/suppliers': SupplierModel,
   '/api/tasks': TaskModel,
@@ -193,11 +186,6 @@ const missingResultMethod = {
     get: 'findById',
     put: 'findByIdAndUpdate',
     delete: 'findByIdAndDelete'
-  },
-  '/api/payment-types': {
-    get: 'findById',
-    put: 'findOneAndUpdate',
-    delete: 'deleteOne'
   },
   '/api/products': {
     get: 'findById',
@@ -248,7 +236,6 @@ const requestBody = (endpoint) => {
     suppliersName: 'Proveedor de prueba',
     items: [{ productId: TEST_ID, quantity: 1, price: 20 }],
     totalAmount: 20,
-    paymentType: 'Efectivo',
     title: 'Tarea de prueba',
     description: 'Descripción de prueba',
     priority: 'medium',

@@ -64,15 +64,6 @@ vi.mock('../src/models/Orders.models.js', () => ({
   })
 }))
 
-vi.mock('../src/models/PaymentsType.models.js', () => ({
-  default: makeModel({
-    find: vi.fn(),
-    findById: vi.fn(),
-    findOneAndUpdate: vi.fn(),
-    deleteOne: vi.fn()
-  })
-}))
-
 vi.mock('../src/models/ Suppliers.models.js', () => ({
   default: makeModel({
     find: vi.fn(),
@@ -125,10 +116,6 @@ import {
 } from '../src/controllers/InventoryRecord.controllers.js'
 import { getOrders } from '../src/controllers/Orders.controllers.js'
 import {
-  createPaymentType,
-  getPaymentTypes
-} from '../src/controllers/PaymentsType.controllers.js'
-import {
   createProduct,
   getProducts
 } from '../src/controllers/Products.controllers.js'
@@ -143,7 +130,6 @@ import UsersModel from '../src/models/Users.models.js'
 import ProductModel from '../src/models/Products.models.js'
 import InventoryRecord from '../src/models/InventoryRecord.models.js'
 import OrderModel from '../src/models/Orders.models.js'
-import PaymentTypeModel from '../src/models/PaymentsType.models.js'
 import SupplierModel from '../src/models/ Suppliers.models.js'
 import TypeInventoryModel from '../src/models/TypeInventory.models.js'
 import TaskModel from '../src/models/Tasks.models.js'
@@ -264,30 +250,6 @@ describe('Controller smoke tests', () => {
 
     const res = mockRes()
     await getOrders({}, res)
-
-    expect(res.status).toHaveBeenCalledWith(200)
-  })
-
-  it('creates payment type', async () => {
-    const res = mockRes()
-    const saveSpy = vi
-      .fn()
-      .mockResolvedValue({ _id: 'pt-1', paymentType: 'Efectivo' })
-    PaymentTypeModel.prototype.save = saveSpy
-
-    await createPaymentType({ body: { paymentType: 'Efectivo' } }, res)
-
-    expect(saveSpy).toHaveBeenCalled()
-    expect(res.status).toHaveBeenCalledWith(201)
-  })
-
-  it('lists payment types', async () => {
-    PaymentTypeModel.find.mockResolvedValue([
-      { _id: 'pt-1', paymentType: 'Efectivo' }
-    ])
-    const res = mockRes()
-
-    await getPaymentTypes({}, res)
 
     expect(res.status).toHaveBeenCalledWith(200)
   })

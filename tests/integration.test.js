@@ -143,11 +143,6 @@ describe('Integración con MongoDB real', () => {
     }
   )
   crud(
-    '/api/payment-types',
-    { paymentType: 'Efectivo' },
-    { paymentType: 'Tarjeta' }
-  )
-  crud(
     '/api/type-inventory',
     { typeInventory: 'Entrada' },
     { typeInventory: 'Salida' }
@@ -469,7 +464,6 @@ describe('Integración con MongoDB real', () => {
       '/api/users',
       '/api/inventory-records',
       '/api/daily-information',
-      '/api/payment-types',
       '/api/type-inventory'
     ]) {
       expect((await api('get', `${base}/no-es-id`)).status, base).toBe(400)

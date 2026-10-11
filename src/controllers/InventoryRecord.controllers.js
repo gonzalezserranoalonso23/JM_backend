@@ -22,6 +22,15 @@ const normalizeInventoryType = (value = '') => {
   return null
 }
 
+const PAYMENT_TYPES = ['EFECTIVO', 'TARJETA']
+
+// Devuelve el tipo de pago válido, null si no se indicó o undefined si es inválido
+const normalizePaymentType = (value) => {
+  if (value === undefined || value === null || value === '') return null
+  const normalized = String(value).trim().toUpperCase()
+  return PAYMENT_TYPES.includes(normalized) ? normalized : undefined
+}
+
 const isIssueType = (value = '') => normalizeInventoryType(value) === ISSUE_TYPE
 
 // Efecto de un movimiento sobre el stock: las entradas suman, las salidas restan
@@ -117,6 +126,12 @@ const getInventoryRecord = (req, res) => {
 // Lanza un error con `.status` para que el caller (single o bulk) responda igual.
 const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   const { date, typeInventory, productName, category, Observations } = payload
+  const paymentType = normalizePaymentType(payload.paymentType)
+  if (paymentType === undefined) {
+    const error = new Error('Tipo de pago inválido. Use EFECTIVO o TARJETA')
+    error.status = 400
+    throw error
+  }
 
   // Los campos numéricos pueden llegar como string desde el formulario;
   // sin castear, `productStock + quantity` concatenaba strings en vez de sumar.
@@ -191,6 +206,7 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
       quantity,
       totalAmount,
       Observations,
+      paymentType,
       User: authenticatedUserId
     }).save()
   } catch (error) {
@@ -299,7 +315,8 @@ const updateInventoryRecord = async (req, res) => {
     productPrice,
     quantity,
     totalAmount,
-    Observations
+    Observations,
+    paymentType
   } = req.body
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
@@ -307,6 +324,11 @@ const updateInventoryRecord = async (req, res) => {
   if (!normalizedType)
     return res.status(400).json({
       message: 'Tipo de inventario inválido. Use ENTRY o ISSUE'
+    })
+  const normalizedPayment = normalizePaymentType(paymentType)
+  if (normalizedPayment === undefined)
+    return res.status(400).json({
+      message: 'Tipo de pago inválido. Use EFECTIVO o TARJETA'
     })
 
   try {
@@ -367,7 +389,8 @@ const updateInventoryRecord = async (req, res) => {
         productPrice,
         quantity,
         totalAmount,
-        Observations
+        Observations,
+        paymentType: normalizedPayment
       },
       { new: true }
     )

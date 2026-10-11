@@ -36,6 +36,11 @@ const InventoryRecordSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  paymentType: {
+    type: String,
+    enum: ['EFECTIVO', 'TARJETA'],
+    default: null
+  },
   User: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
