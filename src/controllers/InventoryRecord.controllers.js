@@ -24,6 +24,58 @@ const normalizeInventoryType = (value = '') => {
 
 const isIssueType = (value = '') => normalizeInventoryType(value) === ISSUE_TYPE
 
+// Efecto de un movimiento sobre el stock: las entradas suman, las salidas restan
+const stockDelta = (type, quantity) =>
+  isIssueType(type) ? -Number(quantity) : Number(quantity)
+
+// Ajuste atómico ($inc): evita carreras entre peticiones simultáneas. Al restar
+// exige stock suficiente, salvo con `force` (reversas internas).
+const adjustStock = (productId, delta, { force = false } = {}) => {
+  const filter = { _id: productId }
+  if (delta < 0 && !force) filter.productStock = { $gte: -delta }
+  return Product.findOneAndUpdate(
+    filter,
+    { $inc: { productStock: delta } },
+    { new: true }
+  )
+}
+
+// Las ventas del día solo se acumulan en DailyInformation para las salidas
+const adjustDailySales = async (date, amount, direction) => {
+  if (!date) return
+  const dailyInfo = await DailyInformation.findOne({
+    date: date.toString().split('T')[0]
+  })
+  if (!dailyInfo) return
+  dailyInfo.totalSales += direction * amount
+  dailyInfo.totalTransactions += direction
+  await dailyInfo.save()
+}
+
+const insufficientStockError = (availableStock, requestedQuantity) => {
+  const error = new Error('Stock insuficiente')
+  error.status = 400
+  error.availableStock = availableStock
+  error.requestedQuantity = requestedQuantity
+  return error
+}
+
+// Deshace un movimiento ya creado (stock, ventas del día y registro)
+const rollbackRecord = async (record) => {
+  const productId = record.productName?._id ?? record.productName
+  await adjustStock(
+    productId,
+    -stockDelta(record.typeInventory, record.quantity),
+    {
+      force: true
+    }
+  )
+  if (isIssueType(record.typeInventory)) {
+    await adjustDailySales(record.date, Number(record.totalAmount), -1)
+  }
+  await InventoryRecord.deleteOne({ _id: record._id })
+}
+
 const getInventoryRecords = (req, res) => {
   InventoryRecord.find()
     .populate('productName', { __v: 0 })
@@ -113,11 +165,7 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   const isExit = isIssueType(normalizedType)
 
   if (isExit && product.productStock < quantity) {
-    const error = new Error('Stock insuficiente')
-    error.status = 400
-    error.availableStock = product.productStock
-    error.requestedQuantity = quantity
-    throw error
+    throw insufficientStockError(product.productStock, quantity)
   }
 
   if (!authenticatedUserId) {
@@ -126,40 +174,31 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
     throw error
   }
 
-  const newInventoryRecord = new InventoryRecord({
-    date,
-    typeInventory: normalizedType,
-    productName,
-    category,
-    productPrice,
-    quantity,
-    totalAmount,
-    Observations,
-    User: authenticatedUserId
-  })
-
-  const savedRecord = await newInventoryRecord.save()
-
-  const isEntry = !isExit
-  const stockChange = isEntry ? quantity : -quantity
-  const newStock = product.productStock + stockChange
-
-  await Product.findByIdAndUpdate(
-    productName,
-    { productStock: newStock },
-    { new: true }
-  )
-
-  if (isExit && date) {
-    const dateStr = date.toString().split('T')[0] // Formato YYYY-MM-DD
-    const dailyInfo = await DailyInformation.findOne({ date: dateStr })
-
-    if (dailyInfo) {
-      dailyInfo.totalSales += totalAmount
-      dailyInfo.totalTransactions += 1
-      await dailyInfo.save()
-    }
+  const stockChange = stockDelta(normalizedType, quantity)
+  const updatedProduct = await adjustStock(productName, stockChange)
+  if (!updatedProduct) {
+    throw insufficientStockError(product.productStock, quantity)
   }
+
+  let savedRecord
+  try {
+    savedRecord = await new InventoryRecord({
+      date,
+      typeInventory: normalizedType,
+      productName,
+      category,
+      productPrice,
+      quantity,
+      totalAmount,
+      Observations,
+      User: authenticatedUserId
+    }).save()
+  } catch (error) {
+    await adjustStock(productName, -stockChange, { force: true })
+    throw error
+  }
+
+  if (isExit) await adjustDailySales(date, totalAmount, 1)
 
   return InventoryRecord.findById(savedRecord._id)
     .populate('productName', { __v: 0 })
@@ -209,6 +248,7 @@ const createInventoryRecord = async (req, res) => {
 
 // Recibe un carrito de movimientos (arreglo) y los crea uno por uno, en orden,
 // para que el stock de cada iteración quede reflejado en la siguiente.
+// Todo o nada: si un renglón falla, se deshacen los ya creados.
 const createInventoryRecords = async (req, res) => {
   const records = Array.isArray(req.body) ? req.body : req.body.records
 
@@ -233,6 +273,10 @@ const createInventoryRecords = async (req, res) => {
     res.status(201).json(created)
   } catch (rawError) {
     const error = toHttpError(rawError)
+    const failedAt = created.length
+    for (const record of created.reverse()) {
+      await rollbackRecord(record).catch(() => {})
+    }
     res.status(error.status || 500).json({
       message: error.status
         ? error.message
@@ -240,12 +284,12 @@ const createInventoryRecords = async (req, res) => {
       availableStock: error.availableStock,
       requestedQuantity: error.requestedQuantity,
       error: error.status ? undefined : error.message,
-      created
+      failedAt
     })
   }
 }
 
-const updateInventoryRecord = (req, res) => {
+const updateInventoryRecord = async (req, res) => {
   const { id } = req.params
   const {
     date,
@@ -265,57 +309,123 @@ const updateInventoryRecord = (req, res) => {
       message: 'Tipo de inventario inválido. Use ENTRY o ISSUE'
     })
 
-  InventoryRecord.findOneAndUpdate(
-    { _id: id },
-    {
-      date,
+  try {
+    const previous = await InventoryRecord.findById(id)
+    if (!previous)
+      return res
+        .status(404)
+        .json({ message: 'Registro de inventario no encontrado' })
+
+    const next = {
+      date: date ?? previous.date,
       typeInventory: normalizedType,
-      productName,
-      category,
-      productPrice,
-      quantity,
-      totalAmount,
-      Observations
-    },
-    { new: true }
-  )
-    .then((data) => {
-      if (!data)
-        return res
-          .status(404)
-          .json({ message: 'Registro de inventario no encontrado' })
-      res.status(200).json(data)
-    })
-    .catch((error) =>
-      res.status(500).json({
-        message:
-          'Ha ocurrido un error al actualizar el registro de inventario !  ',
-        error
-      })
+      productName: productName ?? previous.productName,
+      quantity: Number(quantity ?? previous.quantity),
+      totalAmount: Number(totalAmount ?? previous.totalAmount)
+    }
+    if (!Number.isFinite(next.quantity) || next.quantity <= 0)
+      return res.status(400).json({ message: 'Cantidad inválida' })
+
+    const previousDelta = stockDelta(previous.typeInventory, previous.quantity)
+    const nextDelta = stockDelta(next.typeInventory, next.quantity)
+    const sameProduct =
+      String(previous.productName) === String(next.productName)
+
+    // Deja el stock como si el movimiento viejo nunca hubiera existido y aplica el nuevo
+    if (sameProduct) {
+      if (nextDelta !== previousDelta) {
+        const adjusted = await adjustStock(
+          next.productName,
+          nextDelta - previousDelta
+        )
+        if (!adjusted) throw insufficientStockError(undefined, next.quantity)
+      }
+    } else {
+      const reverted = await adjustStock(previous.productName, -previousDelta)
+      if (!reverted) throw insufficientStockError(undefined, previous.quantity)
+      const applied = await adjustStock(next.productName, nextDelta)
+      if (!applied) {
+        await adjustStock(previous.productName, previousDelta, { force: true })
+        throw insufficientStockError(undefined, next.quantity)
+      }
+    }
+
+    if (isIssueType(previous.typeInventory)) {
+      await adjustDailySales(previous.date, Number(previous.totalAmount), -1)
+    }
+    if (isIssueType(next.typeInventory)) {
+      await adjustDailySales(next.date, next.totalAmount, 1)
+    }
+
+    const data = await InventoryRecord.findOneAndUpdate(
+      { _id: id },
+      {
+        date,
+        typeInventory: normalizedType,
+        productName,
+        category,
+        productPrice,
+        quantity,
+        totalAmount,
+        Observations
+      },
+      { new: true }
     )
+    res.status(200).json(data)
+  } catch (rawError) {
+    const error = toHttpError(rawError)
+    if (error.status) {
+      return res.status(error.status).json({
+        message: error.message,
+        availableStock: error.availableStock,
+        requestedQuantity: error.requestedQuantity
+      })
+    }
+    res.status(500).json({
+      message:
+        'Ha ocurrido un error al actualizar el registro de inventario !  ',
+      error
+    })
+  }
 }
 
-const deleteInventoryRecord = (req, res) => {
+// Borrar un movimiento revierte su efecto en el stock y en las ventas del día
+const deleteInventoryRecord = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
 
-  InventoryRecord.deleteOne({ _id: id })
-    .then((result) => {
-      if (result.deletedCount === 0)
-        return res
-          .status(404)
-          .json({ message: 'Registro de inventario no encontrado' })
-      res.status(200).json({
-        message: 'El registro de inventario se ha borrado exitosamente!'
-      })
-    })
-    .catch((error) =>
-      res.status(500).json({
-        message: 'Hubo un error al intentar borrar el registro de inventario  ',
-        error
-      })
+  try {
+    const record = await InventoryRecord.findById(id)
+    if (!record)
+      return res
+        .status(404)
+        .json({ message: 'Registro de inventario no encontrado' })
+
+    const reverted = await adjustStock(
+      record.productName,
+      -stockDelta(record.typeInventory, record.quantity)
     )
+    if (!reverted && (await Product.findById(record.productName))) {
+      return res.status(409).json({
+        message:
+          'No se puede borrar: el stock de esta entrada ya fue utilizado en salidas'
+      })
+    }
+
+    if (isIssueType(record.typeInventory)) {
+      await adjustDailySales(record.date, Number(record.totalAmount), -1)
+    }
+    await InventoryRecord.deleteOne({ _id: id })
+    res.status(200).json({
+      message: 'El registro de inventario se ha borrado exitosamente!'
+    })
+  } catch (error) {
+    res.status(500).json({
+      message: 'Hubo un error al intentar borrar el registro de inventario  ',
+      error
+    })
+  }
 }
 
 // REPORTES Y ANÁLISIS

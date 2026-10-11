@@ -16,7 +16,7 @@ vi.mock('jsonwebtoken', () => ({
 vi.mock('../src/models/Products.models.js', () => ({
   default: {
     findById: vi.fn(),
-    findByIdAndUpdate: vi.fn(),
+    findOneAndUpdate: vi.fn(),
     find: vi.fn()
   }
 }))
@@ -180,7 +180,7 @@ describe('Business logic tests', () => {
       productStock: 10,
       productPrice: 18
     })
-    Product.findByIdAndUpdate.mockResolvedValue({
+    Product.findOneAndUpdate.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
       productStock: 17
     })
@@ -207,9 +207,9 @@ describe('Business logic tests', () => {
     )
 
     expect(InventoryRecordModel.instances[0].save).toHaveBeenCalled()
-    expect(Product.findByIdAndUpdate).toHaveBeenCalledWith(
-      '507f1f77bcf86cd799439011',
-      { productStock: 17 },
+    expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: '507f1f77bcf86cd799439011' },
+      { $inc: { productStock: 7 } },
       { new: true }
     )
     expect(res.status).toHaveBeenCalledWith(201)
@@ -245,7 +245,7 @@ describe('Business logic tests', () => {
       productStock: 12,
       productPrice: 25
     })
-    Product.findByIdAndUpdate.mockResolvedValue({
+    Product.findOneAndUpdate.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
       productStock: 9
     })
@@ -278,9 +278,9 @@ describe('Business logic tests', () => {
     )
 
     expect(InventoryRecordModel.instances[0].save).toHaveBeenCalled()
-    expect(Product.findByIdAndUpdate).toHaveBeenCalledWith(
-      '507f1f77bcf86cd799439011',
-      { productStock: 9 },
+    expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: '507f1f77bcf86cd799439011', productStock: { $gte: 3 } },
+      { $inc: { productStock: -3 } },
       { new: true }
     )
     expect(DailyInformation.findOne).toHaveBeenCalledWith({

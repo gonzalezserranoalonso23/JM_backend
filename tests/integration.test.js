@@ -359,6 +359,106 @@ describe('Integración con MongoDB real', () => {
     )
   })
 
+  it('carritos de entrada/salida: stock atómico, todo o nada, edición y borrado', async () => {
+    const category = (
+      await api('post', '/api/categories').send({ categories: 'Bebidas' })
+    ).body
+    const supplier = (
+      await api('post', '/api/suppliers').send({
+        suppliersName: 'Refrescos JM',
+        suppliersContact: 'Ana',
+        supplierPhone: '5550002222'
+      })
+    ).body
+    const create = async (name, stock) =>
+      (
+        await api('post', '/api/products').send({
+          productName: name,
+          productDescription: '600ml',
+          purchasePrice: 10,
+          productPrice: 15,
+          productStock: stock,
+          minimumProductStock: 1,
+          supplier: supplier._id,
+          category: category._id
+        })
+      ).body
+    const stockOf = async (p) =>
+      (await api('get', `/api/products/${p._id}`)).body.productStock
+    const line = (p, typeInventory, quantity) => ({
+      date: '2026-10-07',
+      typeInventory,
+      productName: p._id,
+      category: category._id,
+      productPrice: '15',
+      quantity,
+      totalAmount: quantity * 15
+    })
+
+    const cola = await create('Cola', 10)
+    const agua = await create('Agua', 2)
+
+    // El carrito de salida descuenta cada producto
+    const cart = await api('post', '/api/inventory-records/bulk').send({
+      records: [line(cola, 'ISSUE', 4), line(agua, 'ISSUE', 1)]
+    })
+    expect(cart.status, JSON.stringify(cart.body)).toBe(201)
+    expect(await stockOf(cola)).toBe(6)
+    expect(await stockOf(agua)).toBe(1)
+
+    // Si un renglón falla no queda nada a medias
+    const before = (await api('get', '/api/inventory-records')).body.length
+    const failed = await api('post', '/api/inventory-records/bulk').send({
+      records: [line(cola, 'ISSUE', 2), line(agua, 'ISSUE', 5)]
+    })
+    expect(failed.status).toBe(400)
+    expect(failed.body.availableStock).toBe(1)
+    expect(await stockOf(cola)).toBe(6)
+    expect(await stockOf(agua)).toBe(1)
+    expect((await api('get', '/api/inventory-records')).body.length).toBe(
+      before
+    )
+
+    // Salidas simultáneas nunca dejan el stock negativo
+    const race = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        api('post', '/api/inventory-records').send(line(cola, 'ISSUE', 2))
+      )
+    )
+    expect(race.filter((r) => r.status === 201)).toHaveLength(3)
+    expect(await stockOf(cola)).toBe(0)
+
+    // Editar la cantidad ajusta la diferencia
+    const entry = await api('post', '/api/inventory-records').send(
+      line(cola, 'ENTRY', 5)
+    )
+    expect(await stockOf(cola)).toBe(5)
+    const edited = await api(
+      'put',
+      `/api/inventory-records/${entry.body._id}`
+    ).send(line(cola, 'ENTRY', 8))
+    expect(edited.status, JSON.stringify(edited.body)).toBe(200)
+    expect(await stockOf(cola)).toBe(8)
+
+    // Borrar una entrada ya consumida se bloquea; una vigente revierte el stock
+    await api('post', '/api/inventory-records').send(line(cola, 'ISSUE', 7))
+    const blocked = await api(
+      'delete',
+      `/api/inventory-records/${entry.body._id}`
+    )
+    expect(blocked.status).toBe(409)
+    expect(await stockOf(cola)).toBe(1)
+
+    const sale = await api('post', '/api/inventory-records').send(
+      line(agua, 'ISSUE', 1)
+    )
+    expect(await stockOf(agua)).toBe(0)
+    expect(
+      (await api('delete', `/api/inventory-records/${sale.body._id}`)).status
+    ).toBe(200)
+    expect(await stockOf(agua)).toBe(1)
+  })
+
   it('valida IDs inválidos y campos requeridos', async () => {
     for (const base of [
       '/api/products',
