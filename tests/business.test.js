@@ -252,12 +252,6 @@ describe('Business logic tests', () => {
     InventoryRecordModel.findById.mockReturnValue(
       mockChainedPopulate(populatedRecord)
     )
-    DailyInformation.findOne.mockResolvedValue({
-      date: '2026-09-03',
-      totalSales: 0,
-      totalTransactions: 0,
-      save: vi.fn().mockResolvedValue(true)
-    })
     InventoryRecordModel.instances = []
 
     await createInventoryRecord(
@@ -283,9 +277,7 @@ describe('Business logic tests', () => {
       { $inc: { productStock: -3 } },
       { new: true }
     )
-    expect(DailyInformation.findOne).toHaveBeenCalledWith({
-      date: '2026-09-03'
-    })
+    expect(DailyInformation.findOne).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(201)
   })
 

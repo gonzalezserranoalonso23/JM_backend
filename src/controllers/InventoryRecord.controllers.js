@@ -1,6 +1,5 @@
 import InventoryRecord from '../models/InventoryRecord.models.js'
 import Product from '../models/Products.models.js'
-import DailyInformation from '../models/DailyInformation.models.js'
 import { isValidObjectId } from 'mongoose'
 import {
   createPaginatedResponse,
@@ -49,18 +48,6 @@ const adjustStock = (productId, delta, { force = false } = {}) => {
   )
 }
 
-// Las ventas del día solo se acumulan en DailyInformation para las salidas
-const adjustDailySales = async (date, amount, direction) => {
-  if (!date) return
-  const dailyInfo = await DailyInformation.findOne({
-    date: date.toString().split('T')[0]
-  })
-  if (!dailyInfo) return
-  dailyInfo.totalSales += direction * amount
-  dailyInfo.totalTransactions += direction
-  await dailyInfo.save()
-}
-
 const insufficientStockError = (availableStock, requestedQuantity) => {
   const error = new Error('Stock insuficiente')
   error.status = 400
@@ -69,7 +56,7 @@ const insufficientStockError = (availableStock, requestedQuantity) => {
   return error
 }
 
-// Deshace un movimiento ya creado (stock, ventas del día y registro)
+// Deshace un movimiento ya creado (stock y registro)
 const rollbackRecord = async (record) => {
   const productId = record.productName?._id ?? record.productName
   await adjustStock(
@@ -79,9 +66,6 @@ const rollbackRecord = async (record) => {
       force: true
     }
   )
-  if (isIssueType(record.typeInventory)) {
-    await adjustDailySales(record.date, Number(record.totalAmount), -1)
-  }
   await InventoryRecord.deleteOne({ _id: record._id })
 }
 
@@ -213,8 +197,6 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
     await adjustStock(productName, -stockChange, { force: true })
     throw error
   }
-
-  if (isExit) await adjustDailySales(date, totalAmount, 1)
 
   return InventoryRecord.findById(savedRecord._id)
     .populate('productName', { __v: 0 })
@@ -372,13 +354,6 @@ const updateInventoryRecord = async (req, res) => {
       }
     }
 
-    if (isIssueType(previous.typeInventory)) {
-      await adjustDailySales(previous.date, Number(previous.totalAmount), -1)
-    }
-    if (isIssueType(next.typeInventory)) {
-      await adjustDailySales(next.date, next.totalAmount, 1)
-    }
-
     const data = await InventoryRecord.findOneAndUpdate(
       { _id: id },
       {
@@ -412,7 +387,7 @@ const updateInventoryRecord = async (req, res) => {
   }
 }
 
-// Borrar un movimiento revierte su efecto en el stock y en las ventas del día
+// Borrar un movimiento revierte su efecto en el stock
 const deleteInventoryRecord = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
@@ -436,9 +411,6 @@ const deleteInventoryRecord = async (req, res) => {
       })
     }
 
-    if (isIssueType(record.typeInventory)) {
-      await adjustDailySales(record.date, Number(record.totalAmount), -1)
-    }
     await InventoryRecord.deleteOne({ _id: id })
     res.status(200).json({
       message: 'El registro de inventario se ha borrado exitosamente!'
