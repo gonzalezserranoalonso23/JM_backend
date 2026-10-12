@@ -110,7 +110,7 @@ describe('Business logic tests', () => {
     expect(jwt.sign).toHaveBeenCalledWith(
       { id: '507f1f77bcf86cd799439013', username: 'admin', isAdmin: true },
       process.env.SECURITY_JM,
-      { expiresIn: '1d' }
+      { expiresIn: '14d' }
     )
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -362,7 +362,7 @@ describe('Business logic tests', () => {
 })
 
 describe('Seguridad del login', () => {
-  it('con recuérdame el token dura 7 días', async () => {
+  it('el token dura 14 días con o sin recuérdame', async () => {
     const res = mockRes()
     UserModel.findOne.mockResolvedValue({
       _id: '507f1f77bcf86cd799439013',
@@ -378,7 +378,7 @@ describe('Seguridad del login', () => {
     expect(jwt.sign).toHaveBeenCalledWith(
       expect.any(Object),
       process.env.SECURITY_JM,
-      { expiresIn: '7d' }
+      { expiresIn: '14d' }
     )
   })
 

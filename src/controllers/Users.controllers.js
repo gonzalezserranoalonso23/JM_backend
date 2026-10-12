@@ -63,7 +63,7 @@ const getUser = async (req, res) => {
 }
 
 const loginUser = async (req, res) => {
-  const { username, password, remember } = req.body
+  const { username, password } = req.body
   if (!username || !password)
     return res
       .status(400)
@@ -90,7 +90,7 @@ const loginUser = async (req, res) => {
         isAdmin: existUser.isAdmin === true
       },
       process.env.SECURITY_JM,
-      { expiresIn: remember === true ? '7d' : '1d' }
+      { expiresIn: '14d' }
     )
     res
       .status(200)
