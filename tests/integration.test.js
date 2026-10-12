@@ -183,6 +183,30 @@ describe('Integración con MongoDB real', () => {
     expect((await api('delete', `/api/tasks/${id}`)).status).toBe(200)
   })
 
+  it('asigna tareas a otros usuarios', async () => {
+    const users = await api('get', '/api/users/assignable')
+    expect(users.status).toBe(200)
+    expect(users.body[0].password).toBeUndefined()
+
+    const created = await api('post', '/api/tasks').send({
+      title: 'Revisar bodega',
+      assignedTo: userId
+    })
+    expect(created.status, JSON.stringify(created.body)).toBe(201)
+    expect(created.body.assignedTo.username).toBe('admin')
+
+    const unassigned = await api('put', `/api/tasks/${created.body._id}`).send({
+      assignedTo: null
+    })
+    expect(unassigned.body.assignedTo).toBeNull()
+
+    const invalid = await api('post', '/api/tasks').send({
+      title: 'Inválida',
+      assignedTo: '507f1f77bcf86cd799439011'
+    })
+    expect(invalid.status).toBe(400)
+  })
+
   it('flujo completo: producto, órdenes, inventario, stock y reportes', async () => {
     const category = (
       await api('post', '/api/categories').send({ categories: 'Abarrotes' })

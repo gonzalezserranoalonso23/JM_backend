@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   loginUser,
   getUsers,
+  getAssignableUsers,
   getUser,
   registerUser,
   updateUser,
@@ -23,6 +24,8 @@ const loginLimiter = rateLimit({
 router.post('/login', loginLimiter, loginUser)
 // path users/login, registerUser controller to register in database
 router.post('/register', verifyToken, requireAdmin, registerUser)
+// usuarios disponibles para asignar tareas, accesible para cualquier usuario autenticado
+router.get('/assignable', verifyToken, getAssignableUsers)
 // path users/register, getUsers controlller to get all users
 router.get('/', verifyToken, requireAdmin, getUsers)
 //  path users and id param, getUser controller to get one user

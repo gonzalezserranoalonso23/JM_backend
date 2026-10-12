@@ -472,6 +472,13 @@ const getLowStockProducts = async (req, res) => {
       const regex = { $regex: escapeRegex(search), $options: 'i' }
       filter.$or = [{ productName: regex }, { productDescription: regex }]
     }
+    const { category } = req.query
+    if (category) {
+      if (!isValidObjectId(category)) {
+        return res.status(400).json({ message: 'Categoría inválida' })
+      }
+      filter.category = category
+    }
     const query = Product.find(filter).populate('category').populate('supplier')
 
     if (!pagination.requested) {
@@ -541,21 +548,23 @@ const getSalesByDateRange = async (req, res) => {
             $group: {
               _id: '$typeInventory',
               count: { $sum: 1 },
-              totalAmount: { $sum: '$totalAmount' }
+              totalAmount: { $sum: '$totalAmount' },
+              products: { $addToSet: '$productName' }
             }
           }
         ])
       ])
 
       const summary = {
-        [ENTRY_TYPE]: { count: 0, totalAmount: 0 },
-        [ISSUE_TYPE]: { count: 0, totalAmount: 0 }
+        [ENTRY_TYPE]: { count: 0, totalAmount: 0, products: 0 },
+        [ISSUE_TYPE]: { count: 0, totalAmount: 0, products: 0 }
       }
       for (const group of grouped) {
         if (summary[group._id]) {
           summary[group._id] = {
             count: group.count,
-            totalAmount: group.totalAmount
+            totalAmount: group.totalAmount,
+            products: group.products.length
           }
         }
       }

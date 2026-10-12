@@ -1,10 +1,22 @@
 import Task from '../models/Tasks.models.js'
+import User from '../models/Users.models.js'
 import { isValidObjectId } from 'mongoose'
+
+const USER_FIELDS = 'username email fullName'
+
+// Devuelve null si no hay asignado, undefined si es inválido o no existe
+const resolveAssignee = async (value) => {
+  if (value === undefined || value === null || value === '') return null
+  if (!isValidObjectId(value)) return undefined
+  const exists = await User.exists({ _id: value })
+  return exists ? value : undefined
+}
 
 export const getTasks = async (req, res) => {
   try {
     const tasks = await Task.find()
-      .populate('createdBy', 'username email fullName')
+      .populate('createdBy', USER_FIELDS)
+      .populate('assignedTo', USER_FIELDS)
       .populate('completedBy', 'username email fullName')
       .sort({ createdAt: -1 })
 
@@ -21,7 +33,8 @@ export const getTask = async (req, res) => {
 
   try {
     const task = await Task.findById(req.params.id)
-      .populate('createdBy', 'username email fullName')
+      .populate('createdBy', USER_FIELDS)
+      .populate('assignedTo', USER_FIELDS)
       .populate('completedBy', 'username email fullName')
 
     if (!task) {
@@ -36,27 +49,33 @@ export const getTask = async (req, res) => {
 
 export const createTask = async (req, res) => {
   try {
-    const { title, description, priority } = req.body
+    const { title, description, priority, assignedTo } = req.body
     const userId = req.user.id
 
     if (!title) {
       return res.status(400).json({ message: 'El título es requerido' })
     }
 
+    const assignee = await resolveAssignee(assignedTo)
+    if (assignee === undefined) {
+      return res.status(400).json({ message: 'Usuario asignado inválido' })
+    }
+
     const newTask = new Task({
       title,
       description: description || '',
       priority: priority || 'medium',
+      assignedTo: assignee,
       createdBy: userId,
       status: 'pending'
     })
 
     await newTask.save()
 
-    const populatedTask = await newTask.populate(
-      'createdBy',
-      'username email fullName'
-    )
+    const populatedTask = await newTask.populate([
+      { path: 'createdBy', select: USER_FIELDS },
+      { path: 'assignedTo', select: USER_FIELDS }
+    ])
 
     res.status(201).json(populatedTask)
   } catch (error) {
@@ -67,7 +86,7 @@ export const createTask = async (req, res) => {
 export const updateTask = async (req, res) => {
   try {
     const { id } = req.params
-    const { title, description, priority, status } = req.body
+    const { title, description, priority, status, assignedTo } = req.body
     const userId = req.user.id
 
     if (!isValidObjectId(id)) {
@@ -83,6 +102,14 @@ export const updateTask = async (req, res) => {
     if (description !== undefined) task.description = description
     if (priority) task.priority = priority
 
+    if (assignedTo !== undefined) {
+      const assignee = await resolveAssignee(assignedTo)
+      if (assignee === undefined) {
+        return res.status(400).json({ message: 'Usuario asignado inválido' })
+      }
+      task.assignedTo = assignee
+    }
+
     if (status && status !== task.status) {
       task.status = status
       if (status === 'completed') {
@@ -97,7 +124,8 @@ export const updateTask = async (req, res) => {
     await task.save()
 
     const updatedTask = await Task.findById(id)
-      .populate('createdBy', 'username email fullName')
+      .populate('createdBy', USER_FIELDS)
+      .populate('assignedTo', USER_FIELDS)
       .populate('completedBy', 'username email fullName')
 
     res.status(200).json(updatedTask)
@@ -129,7 +157,8 @@ export const deleteTask = async (req, res) => {
 export const getPendingTasks = async (req, res) => {
   try {
     const pendingTasks = await Task.find({ status: 'pending' })
-      .populate('createdBy', 'username email fullName')
+      .populate('createdBy', USER_FIELDS)
+      .populate('assignedTo', USER_FIELDS)
       .sort({ createdAt: -1 })
 
     res.status(200).json(pendingTasks)
@@ -141,7 +170,8 @@ export const getPendingTasks = async (req, res) => {
 export const getCompletedTasks = async (req, res) => {
   try {
     const completedTasks = await Task.find({ status: 'completed' })
-      .populate('createdBy', 'username email fullName')
+      .populate('createdBy', USER_FIELDS)
+      .populate('assignedTo', USER_FIELDS)
       .populate('completedBy', 'username email fullName')
       .sort({ completedAt: -1 })
 

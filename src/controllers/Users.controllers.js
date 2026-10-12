@@ -10,6 +10,20 @@ import {
 } from '../utils/pagination.js'
 dotenv.config()
 
+const getAssignableUsers = async (req, res) => {
+  try {
+    const users = await UserModel.find({}, 'username fullName')
+      .sort({ username: 1 })
+      .lean()
+    res.status(200).json(users)
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error al obtener usuarios',
+      error: error.message
+    })
+  }
+}
+
 const getUsers = async (req, res) => {
   const pagination = getPagination(req.query)
   if (pagination.error) {
@@ -180,4 +194,12 @@ const deleteUser = async (req, res) => {
   }
 }
 
-export { getUser, getUsers, loginUser, registerUser, updateUser, deleteUser }
+export {
+  getUser,
+  getUsers,
+  getAssignableUsers,
+  loginUser,
+  registerUser,
+  updateUser,
+  deleteUser
+}
