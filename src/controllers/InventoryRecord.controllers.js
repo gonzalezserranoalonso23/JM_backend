@@ -109,7 +109,7 @@ const getInventoryRecord = (req, res) => {
 // Crea un único movimiento de inventario y actualiza el stock del producto.
 // Lanza un error con `.status` para que el caller (single o bulk) responda igual.
 const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
-  const { date, typeInventory, productName, category, Observations } = payload
+  const { date, typeInventory, productName, category } = payload
   const paymentType = normalizePaymentType(payload.paymentType)
   if (paymentType === undefined) {
     const error = new Error('Tipo de pago inválido. Use EFECTIVO o TARJETA')
@@ -189,7 +189,6 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
       productPrice,
       quantity,
       totalAmount,
-      Observations,
       paymentType,
       User: authenticatedUserId
     }).save()
@@ -297,7 +296,6 @@ const updateInventoryRecord = async (req, res) => {
     productPrice,
     quantity,
     totalAmount,
-    Observations,
     paymentType
   } = req.body
   if (!isValidObjectId(id))
@@ -364,7 +362,6 @@ const updateInventoryRecord = async (req, res) => {
         productPrice,
         quantity,
         totalAmount,
-        Observations,
         paymentType: normalizedPayment
       },
       { new: true }

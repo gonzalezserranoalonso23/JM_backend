@@ -139,8 +139,7 @@ describe('Business logic tests', () => {
           category: '507f1f77bcf86cd799439012',
           productPrice: 25,
           quantity: 5,
-          totalAmount: 125,
-          Observations: 'venta'
+          totalAmount: 125
         },
         user: { id: '507f1f77bcf86cd799439013' }
       },
@@ -171,7 +170,6 @@ describe('Business logic tests', () => {
       productPrice: 18,
       quantity: 7,
       totalAmount: 126,
-      Observations: 'Compra',
       User: { _id: '507f1f77bcf86cd799439013', username: 'admin' }
     }
 
@@ -198,8 +196,7 @@ describe('Business logic tests', () => {
           category: '507f1f77bcf86cd799439012',
           productPrice: 18,
           quantity: 7,
-          totalAmount: 126,
-          Observations: 'Compra'
+          totalAmount: 126
         },
         user: { id: '507f1f77bcf86cd799439013' }
       },
@@ -236,7 +233,6 @@ describe('Business logic tests', () => {
       productPrice: 25,
       quantity: 3,
       totalAmount: 75,
-      Observations: 'venta',
       User: { _id: '507f1f77bcf86cd799439013', username: 'admin' }
     }
 
@@ -263,8 +259,7 @@ describe('Business logic tests', () => {
           category: '507f1f77bcf86cd799439012',
           productPrice: 25,
           quantity: 3,
-          totalAmount: 75,
-          Observations: 'venta'
+          totalAmount: 75
         },
         user: { id: '507f1f77bcf86cd799439013' }
       },

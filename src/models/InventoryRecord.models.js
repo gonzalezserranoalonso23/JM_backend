@@ -32,10 +32,6 @@ const InventoryRecordSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Proporcionar un monto']
   },
-  Observations: {
-    type: String,
-    default: null
-  },
   paymentType: {
     type: String,
     enum: ['EFECTIVO', 'TARJETA'],

@@ -219,8 +219,7 @@ describe('Controller smoke tests', () => {
           category: '507f1f77bcf86cd799439012',
           productPrice: 15,
           quantity: 2,
-          totalAmount: 30,
-          Observations: 'test'
+          totalAmount: 30
         },
         userId: 'u-1'
       },
