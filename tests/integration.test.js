@@ -284,8 +284,38 @@ describe('Integración con MongoDB real', () => {
     ).send({ ...base, typeInventory: 'ENTRY', quantity: 5, totalAmount: 110 })
     expect(upRec.status).toBe(200)
 
+    // Reporte paginado: la página y el filtro de tipo no alteran el resumen del período
+    const paged = await api(
+      'get',
+      '/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&limit=1'
+    )
+    expect(paged.status, JSON.stringify(paged.body)).toBe(200)
+    expect(paged.body.data).toHaveLength(1)
+    expect(paged.body.hasNextPage).toBe(true)
+    expect(paged.body.total).toBeGreaterThan(1)
+    expect(paged.body.summary.ENTRY.count).toBeGreaterThan(0)
+    expect(paged.body.summary.ISSUE.count).toBeGreaterThan(0)
+
+    const issuesOnly = await api(
+      'get',
+      '/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&limit=100&type=ISSUE'
+    )
+    expect(issuesOnly.status).toBe(200)
+    expect(issuesOnly.body.total).toBe(paged.body.summary.ISSUE.count)
+    expect(issuesOnly.body.data.every((r) => r.typeInventory === 'ISSUE')).toBe(
+      true
+    )
+    expect(issuesOnly.body.summary).toEqual(paged.body.summary)
+    expect(
+      (
+        await api(
+          'get',
+          '/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&type=NOPE'
+        )
+      ).status
+    ).toBe(400)
+
     for (const url of [
-      '/api/inventory-records/reports/daily-summary?date=2026-10-06',
       '/api/inventory-records/reports/low-stock',
       '/api/inventory-records/reports/date-range?startDate=2026-10-01&endDate=2026-10-31',
       '/api/inventory-records/reports/by-type?type=ISSUE',

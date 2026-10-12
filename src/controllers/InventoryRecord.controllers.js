@@ -508,6 +508,66 @@ const getSalesByDateRange = async (req, res) => {
         .json({ message: 'Proporcione fecha de inicio y fecha de fin' })
     }
 
+    const pagination = getPagination(req.query)
+    if (pagination.error) {
+      return res.status(400).json({ message: pagination.error })
+    }
+
+    if (pagination.requested) {
+      const dateFilter = { date: { $gte: startDate, $lte: endDate } }
+      const filter = { ...dateFilter }
+      if (req.query.type) {
+        const type = normalizeInventoryType(req.query.type)
+        if (!type) {
+          return res
+            .status(400)
+            .json({ message: 'Tipo de inventario inválido' })
+        }
+        filter.typeInventory = type
+      }
+
+      // Los resúmenes cubren todo el período, no solo la página cargada
+      const [records, total, grouped] = await Promise.all([
+        InventoryRecord.find(filter)
+          .populate('productName')
+          .populate('User', { __v: 0, password: 0 })
+          .sort({ date: -1, _id: -1 })
+          .skip(pagination.skip)
+          .limit(pagination.limit),
+        InventoryRecord.countDocuments(filter),
+        InventoryRecord.aggregate([
+          { $match: dateFilter },
+          {
+            $group: {
+              _id: '$typeInventory',
+              count: { $sum: 1 },
+              totalAmount: { $sum: '$totalAmount' }
+            }
+          }
+        ])
+      ])
+
+      const summary = {
+        [ENTRY_TYPE]: { count: 0, totalAmount: 0 },
+        [ISSUE_TYPE]: { count: 0, totalAmount: 0 }
+      }
+      for (const group of grouped) {
+        if (summary[group._id]) {
+          summary[group._id] = {
+            count: group.count,
+            totalAmount: group.totalAmount
+          }
+        }
+      }
+
+      return res.status(200).json({
+        ...createPaginatedResponse(records, total, pagination),
+        startDate,
+        endDate,
+        summary
+      })
+    }
+
     const records = await InventoryRecord.find({
       date: { $gte: startDate, $lte: endDate }
     })
