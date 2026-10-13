@@ -272,7 +272,8 @@ describe('Integración con MongoDB real', () => {
       ...base,
       typeInventory: 'ISSUE',
       quantity: 3,
-      totalAmount: 66
+      totalAmount: 66,
+      paymentType: 'TARJETA'
     })
     expect(issue.status, JSON.stringify(issue.body)).toBe(201)
     const tooMuch = await api('post', '/api/inventory-records').send({
@@ -289,7 +290,13 @@ describe('Integración con MongoDB real', () => {
     const bulk = await api('post', '/api/inventory-records/bulk').send({
       records: [
         { ...base, typeInventory: 'ENTRY', quantity: 1, totalAmount: 22 },
-        { ...base, typeInventory: 'ISSUE', quantity: 2, totalAmount: 44 }
+        {
+          ...base,
+          typeInventory: 'ISSUE',
+          quantity: 2,
+          totalAmount: 44,
+          paymentType: 'EFECTIVO'
+        }
       ]
     })
     expect(bulk.status, JSON.stringify(bulk.body)).toBe(201)
@@ -330,12 +337,59 @@ describe('Integración con MongoDB real', () => {
       true
     )
     expect(issuesOnly.body.summary).toEqual(paged.body.summary)
+    const cardOnly = await api(
+      'get',
+      '/api/inventory-records/reports/date-range'
+    ).query({
+      startDate: '2026-10-06',
+      endDate: '2026-10-06',
+      page: 1,
+      limit: 100,
+      paymentType: 'TARJETA'
+    })
+    expect(cardOnly.status, JSON.stringify(cardOnly.body)).toBe(200)
+    expect(cardOnly.body.data).toHaveLength(1)
+    expect(cardOnly.body.data[0].paymentType).toBe('TARJETA')
+    expect(cardOnly.body.summary.ISSUE.count).toBe(1)
+    const exportedCardRecords = await api(
+      'get',
+      '/api/inventory-records/reports/date-range'
+    ).query({
+      startDate: '2026-10-06',
+      endDate: '2026-10-06',
+      paymentType: 'TARJETA'
+    })
+    expect(exportedCardRecords.status).toBe(200)
+    expect(exportedCardRecords.body.allRecords).toHaveLength(1)
+    expect(exportedCardRecords.body.allRecords[0].paymentType).toBe('TARJETA')
+    const cashOnly = await api(
+      'get',
+      '/api/inventory-records/reports/date-range'
+    ).query({
+      startDate: '2026-10-06',
+      endDate: '2026-10-06',
+      page: 1,
+      limit: 100,
+      paymentType: 'EFECTIVO'
+    })
+    expect(cashOnly.status).toBe(200)
+    expect(cashOnly.body.data).toHaveLength(1)
+    expect(cashOnly.body.data[0].paymentType).toBe('EFECTIVO')
     expect(
       (
         await api(
           'get',
           '/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&type=NOPE'
         )
+      ).status
+    ).toBe(400)
+    expect(
+      (
+        await api('get', '/api/inventory-records/reports/date-range').query({
+          startDate: '2026-10-06',
+          endDate: '2026-10-06',
+          paymentType: 'CRIPTO'
+        })
       ).status
     ).toBe(400)
 

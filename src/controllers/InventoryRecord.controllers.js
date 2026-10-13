@@ -523,6 +523,13 @@ const getSalesByDateRange = async (req, res) => {
     if (pagination.requested) {
       const dateFilter = { date: { $gte: startDate, $lte: endDate } }
       const filter = { ...dateFilter }
+      const paymentType = normalizePaymentType(req.query.paymentType)
+      if (paymentType === undefined) {
+        return res
+          .status(400)
+          .json({ message: 'Tipo de pago inválido. Use EFECTIVO o TARJETA' })
+      }
+      if (paymentType) filter.paymentType = paymentType
       if (req.query.type) {
         const type = normalizeInventoryType(req.query.type)
         if (!type) {
@@ -532,6 +539,9 @@ const getSalesByDateRange = async (req, res) => {
         }
         filter.typeInventory = type
       }
+
+      const summaryFilter = { ...dateFilter }
+      if (paymentType) summaryFilter.paymentType = paymentType
 
       // Los resúmenes cubren todo el período, no solo la página cargada
       const [records, total, grouped] = await Promise.all([
@@ -543,7 +553,7 @@ const getSalesByDateRange = async (req, res) => {
           .limit(pagination.limit),
         InventoryRecord.countDocuments(filter),
         InventoryRecord.aggregate([
-          { $match: dateFilter },
+          { $match: summaryFilter },
           {
             $group: {
               _id: '$typeInventory',
@@ -577,9 +587,18 @@ const getSalesByDateRange = async (req, res) => {
       })
     }
 
-    const records = await InventoryRecord.find({
+    const filter = {
       date: { $gte: startDate, $lte: endDate }
-    })
+    }
+    const paymentType = normalizePaymentType(req.query.paymentType)
+    if (paymentType === undefined) {
+      return res
+        .status(400)
+        .json({ message: 'Tipo de pago inválido. Use EFECTIVO o TARJETA' })
+    }
+    if (paymentType) filter.paymentType = paymentType
+
+    const records = await InventoryRecord.find(filter)
       .populate('productName')
       .populate('User', { __v: 0, password: 0 })
       .sort({ date: -1 })
