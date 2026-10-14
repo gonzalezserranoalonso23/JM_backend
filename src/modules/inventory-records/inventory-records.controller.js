@@ -6,7 +6,8 @@
  * GET    /                       -> getInventoryRecords      query: page, limit, search, type, paymentType
  * GET    /reports/daily-summary  -> getDailySalesSummary     query: date (YYYY-MM-DD)
  * GET    /reports/low-stock      -> getLowStockProducts      query: page, limit, search, category
- * GET    /reports/date-range     -> getSalesByDateRange      query: startDate, endDate, page, limit, paymentType, type
+ * GET    /reports/date-range     -> getSalesByDateRange      query: startDate, endDate, page, limit, paymentType, type (_id)
+ *                                                          respuesta: summary y byType indexados por _id del tipo
  * GET    /reports/by-type        -> getInventoryByType       query: type
  * GET    /reports/stats          -> getInventoryStats        sin parámetros
  * GET    /:id                    -> getInventoryRecord       params: id
@@ -624,13 +625,13 @@ const getSalesByDateRange = async (req, res) => {
     let totalRevenue = 0
 
     records.forEach((r) => {
-      const typeName = r.typeInventory.typeInventory
-      if (!byType[typeName]) {
-        byType[typeName] = { count: 0, totalAmount: 0, records: [] }
+      const typeId = String(r.typeInventory._id)
+      if (!byType[typeId]) {
+        byType[typeId] = { count: 0, totalAmount: 0, records: [] }
       }
-      byType[typeName].count += 1
-      byType[typeName].totalAmount += parseFloat(r.totalAmount)
-      byType[typeName].records.push(r)
+      byType[typeId].count += 1
+      byType[typeId].totalAmount += parseFloat(r.totalAmount)
+      byType[typeId].records.push(r)
 
       if (isIssueType(r.typeInventory)) {
         totalRevenue += parseFloat(r.totalAmount)
@@ -659,17 +660,17 @@ const getSalesByDateRange = async (req, res) => {
       ])
       const summary = {}
       for (const record of summaryRecords) {
-        const typeName = record.typeInventory.typeInventory
-        if (!summary[typeName]) {
-          summary[typeName] = {
+        const typeId = String(record.typeInventory._id)
+        if (!summary[typeId]) {
+          summary[typeId] = {
             count: 0,
             totalAmount: 0,
             products: new Set()
           }
         }
-        summary[typeName].count += 1
-        summary[typeName].totalAmount += Number(record.totalAmount)
-        summary[typeName].products.add(String(record.productName))
+        summary[typeId].count += 1
+        summary[typeId].totalAmount += Number(record.totalAmount)
+        summary[typeId].products.add(String(record.productName))
       }
       for (const type of Object.values(summary)) {
         type.products = type.products.size

@@ -353,15 +353,15 @@ describe('Integración con MongoDB real', () => {
     expect(paged.body.data).toHaveLength(1)
     expect(paged.body.hasNextPage).toBe(true)
     expect(paged.body.total).toBeGreaterThan(1)
-    expect(paged.body.summary.Entrada.count).toBeGreaterThan(0)
-    expect(paged.body.summary.Salida.count).toBeGreaterThan(0)
+    expect(paged.body.summary[entryTypeId].count).toBeGreaterThan(0)
+    expect(paged.body.summary[issueTypeId].count).toBeGreaterThan(0)
 
     const issuesOnly = await api(
       'get',
       `/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&limit=100&type=${issueTypeId}`
     )
     expect(issuesOnly.status).toBe(200)
-    expect(issuesOnly.body.total).toBe(paged.body.summary.Salida.count)
+    expect(issuesOnly.body.total).toBe(paged.body.summary[issueTypeId].count)
     expect(
       issuesOnly.body.data.every((r) => r.typeInventory._id === issueTypeId)
     ).toBe(true)
@@ -379,7 +379,7 @@ describe('Integración con MongoDB real', () => {
     expect(cardOnly.status, JSON.stringify(cardOnly.body)).toBe(200)
     expect(cardOnly.body.data).toHaveLength(1)
     expect(cardOnly.body.data[0].paymentType._id).toBe(cardPaymentTypeId)
-    expect(cardOnly.body.summary.Salida.count).toBe(1)
+    expect(cardOnly.body.summary[issueTypeId].count).toBe(1)
     const exportedCardRecords = await api(
       'get',
       '/api/inventory-records/reports/date-range'
