@@ -7,8 +7,8 @@ import {
   deleteTask,
   getPendingTasks,
   getCompletedTasks
-} from '../controllers/Tasks.controllers.js'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+} from './tasks.controller.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = express.Router()
 

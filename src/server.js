@@ -1,6 +1,14 @@
 import app from './app.js'
 import connection from './database/connection.js'
 
+if (!process.env.SECURITY_JM) {
+  console.error('SECURITY_JM debe estar definido')
+  process.exit(1)
+}
+if (process.env.SECURITY_JM.length < 32) {
+  console.warn('Aviso: SECURITY_JM es corto, se recomiendan 32+ caracteres')
+}
+
 connection()
   .then(() => {
     app.listen(app.get('port'), '0.0.0.0', () =>

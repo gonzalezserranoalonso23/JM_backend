@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import CategoriesRouter from '../src/routes/Categories.routes.js'
-import DailyInformationRouter from '../src/routes/DailyInformation.routes.js'
-import InventoryRecordRouter from '../src/routes/InventoryRecord.routes.js'
-import OrdersRouter from '../src/routes/Orders.routes.js'
-import ProductsRouter from '../src/routes/Products.routes.js'
-import SuppliersRouter from '../src/routes/Suppliers.routes.js'
-import TasksRouter from '../src/routes/Tasks.routes.js'
-import TypeInventoryRouter from '../src/routes/TypeInventory.routes.js'
-import UsersRouter from '../src/routes/Users.routes.js'
+import CategoriesRouter from '../src/modules/categories/categories.routes.js'
+import DailyInformationRouter from '../src/modules/daily-information/daily-information.routes.js'
+import InventoryRecordRouter from '../src/modules/inventory-records/inventory-records.routes.js'
+import OrdersRouter from '../src/modules/orders/orders.routes.js'
+import PaymentTypeRouter from '../src/modules/payment-types/payment-types.routes.js'
+import ProductsRouter from '../src/modules/products/products.routes.js'
+import SuppliersRouter from '../src/modules/suppliers/suppliers.routes.js'
+import TasksRouter from '../src/modules/tasks/tasks.routes.js'
+import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.routes.js'
+import UsersRouter from '../src/modules/users/users.routes.js'
 
 const getRoutes = (router) =>
   router.stack
@@ -87,6 +88,18 @@ describe('Route registration smoke tests', () => {
 
   it('declares all type inventory routes', () => {
     expect(getRoutes(TypeInventoryRouter)).toEqual(
+      expect.arrayContaining([
+        { method: 'GET', path: '/' },
+        { method: 'GET', path: '/:id' },
+        { method: 'POST', path: '/' },
+        { method: 'PUT', path: '/:id' },
+        { method: 'DELETE', path: '/:id' }
+      ])
+    )
+  })
+
+  it('declares all payment type routes', () => {
+    expect(getRoutes(PaymentTypeRouter)).toEqual(
       expect.arrayContaining([
         { method: 'GET', path: '/' },
         { method: 'GET', path: '/:id' },

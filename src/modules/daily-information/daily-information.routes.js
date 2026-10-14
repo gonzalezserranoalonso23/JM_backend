@@ -5,8 +5,8 @@ import {
   createDailyInformation,
   updateDailyInformation,
   deleteDailyInformation
-} from '../controllers/DailyInformation.controllers.js'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+} from './daily-information.controller.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 

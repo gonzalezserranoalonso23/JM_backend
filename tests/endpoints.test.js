@@ -13,6 +13,8 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
     productStock: 10,
     productPrice: 20,
     minimumProductStock: 2,
+    stockDirection: 1,
+    typeInventory: id,
     totalSales: 0,
     totalTransactions: 0,
     status: 'pending',
@@ -62,6 +64,12 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
       static findByIdAndDelete = vi.fn().mockResolvedValue(makeDocument())
 
       static deleteOne = vi.fn().mockResolvedValue({ deletedCount: 1 })
+
+      static updateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 })
+
+      static findAuthState = vi
+        .fn()
+        .mockResolvedValue({ tokenVersion: 0, isAdmin: true })
     }
 
     return MockModel
@@ -77,42 +85,51 @@ vi.mock('bcryptjs', () => ({
   }
 }))
 
-vi.mock('../src/models/Categories.models.js', () => ({ default: makeModel() }))
-vi.mock('../src/models/DailyInformation.models.js', () => ({
+vi.mock('../src/modules/categories/categories.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/models/InventoryRecord.models.js', () => ({
+vi.mock('../src/modules/daily-information/daily-information.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/models/Orders.models.js', () => ({ default: makeModel() }))
-vi.mock('../src/models/Products.models.js', () => ({ default: makeModel() }))
-vi.mock('../src/models/ Suppliers.models.js', () => ({
+vi.mock('../src/modules/inventory-records/inventory-records.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/models/Tasks.models.js', () => ({ default: makeModel() }))
-vi.mock('../src/models/TypeInventory.models.js', () => ({
+vi.mock('../src/modules/orders/orders.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/models/Users.models.js', () => ({ default: makeModel() }))
+vi.mock('../src/modules/products/products.model.js', () => ({
+  default: makeModel()
+}))
+vi.mock('../src/modules/suppliers/suppliers.model.js', () => ({
+  default: makeModel()
+}))
+vi.mock('../src/modules/tasks/tasks.model.js', () => ({ default: makeModel() }))
+vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
+  default: makeModel()
+}))
+vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
+  default: makeModel()
+}))
+vi.mock('../src/modules/users/users.model.js', () => ({ default: makeModel() }))
 
-import CategoriesRouter from '../src/routes/Categories.routes.js'
-import DailyInformationRouter from '../src/routes/DailyInformation.routes.js'
-import InventoryRecordRouter from '../src/routes/InventoryRecord.routes.js'
-import OrdersRouter from '../src/routes/Orders.routes.js'
-import ProductsRouter from '../src/routes/Products.routes.js'
-import SuppliersRouter from '../src/routes/Suppliers.routes.js'
-import TasksRouter from '../src/routes/Tasks.routes.js'
-import TypeInventoryRouter from '../src/routes/TypeInventory.routes.js'
-import UsersRouter from '../src/routes/Users.routes.js'
-import CategoriesModel from '../src/models/Categories.models.js'
-import DailyInformationModel from '../src/models/DailyInformation.models.js'
-import InventoryRecordModel from '../src/models/InventoryRecord.models.js'
-import OrdersModel from '../src/models/Orders.models.js'
-import ProductModel from '../src/models/Products.models.js'
-import SupplierModel from '../src/models/ Suppliers.models.js'
-import TaskModel from '../src/models/Tasks.models.js'
-import TypeInventoryModel from '../src/models/TypeInventory.models.js'
-import UserModel from '../src/models/Users.models.js'
+import CategoriesRouter from '../src/modules/categories/categories.routes.js'
+import DailyInformationRouter from '../src/modules/daily-information/daily-information.routes.js'
+import InventoryRecordRouter from '../src/modules/inventory-records/inventory-records.routes.js'
+import OrdersRouter from '../src/modules/orders/orders.routes.js'
+import ProductsRouter from '../src/modules/products/products.routes.js'
+import SuppliersRouter from '../src/modules/suppliers/suppliers.routes.js'
+import TasksRouter from '../src/modules/tasks/tasks.routes.js'
+import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.routes.js'
+import UsersRouter from '../src/modules/users/users.routes.js'
+import CategoriesModel from '../src/modules/categories/categories.model.js'
+import DailyInformationModel from '../src/modules/daily-information/daily-information.model.js'
+import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
+import OrdersModel from '../src/modules/orders/orders.model.js'
+import ProductModel from '../src/modules/products/products.model.js'
+import SupplierModel from '../src/modules/suppliers/suppliers.model.js'
+import TaskModel from '../src/modules/tasks/tasks.model.js'
+import TypeInventoryModel from '../src/modules/type-inventory/type-inventory.model.js'
+import UserModel from '../src/modules/users/users.model.js'
 
 const routers = [
   ['/api/users', UsersRouter],
@@ -223,7 +240,7 @@ const requestBody = (endpoint) => {
     cardSales: 50,
     totalSales: 150,
     totalTransactions: 5,
-    typeInventory: 'ENTRY',
+    typeInventory: TEST_ID,
     productName: TEST_ID,
     category: TEST_ID,
     productPrice: 20,
@@ -264,6 +281,7 @@ const requestBody = (endpoint) => {
 
 const expectedStatus = (endpoint) => {
   if (endpoint.url === '/api/users/login') return 200
+  if (endpoint.url === '/api/users/logout') return 200
   if (endpoint.method === 'post') return 201
   return 200
 }
@@ -311,7 +329,7 @@ describe('HTTP endpoint coverage', () => {
         })
       }
       if (endpoint.url.endsWith('/reports/by-type')) {
-        endpointRequest = endpointRequest.query({ type: 'ENTRY' })
+        endpointRequest = endpointRequest.query({ type: TEST_ID })
       }
 
       const response = await endpointRequest

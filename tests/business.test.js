@@ -13,7 +13,7 @@ vi.mock('jsonwebtoken', () => ({
   }
 }))
 
-vi.mock('../src/models/Products.models.js', () => ({
+vi.mock('../src/modules/products/products.model.js', () => ({
   default: {
     findById: vi.fn(),
     findOneAndUpdate: vi.fn(),
@@ -21,19 +21,36 @@ vi.mock('../src/models/Products.models.js', () => ({
   }
 }))
 
-vi.mock('../src/models/DailyInformation.models.js', () => ({
+vi.mock('../src/modules/daily-information/daily-information.model.js', () => ({
   default: {
     findOne: vi.fn()
   }
 }))
 
-vi.mock('../src/models/Users.models.js', () => ({
+vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
+  default: {
+    findById: vi.fn((id) =>
+      Promise.resolve({
+        _id: id,
+        stockDirection: id === '507f1f77bcf86cd799439015' ? -1 : 1
+      })
+    )
+  }
+}))
+
+vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
+  default: {
+    findById: vi.fn()
+  }
+}))
+
+vi.mock('../src/modules/users/users.model.js', () => ({
   default: {
     findOne: vi.fn()
   }
 }))
 
-vi.mock('../src/models/InventoryRecord.models.js', () => {
+vi.mock('../src/modules/inventory-records/inventory-records.model.js', () => {
   class InventoryRecordMock {
     static instances = []
 
@@ -55,30 +72,37 @@ vi.mock('../src/models/InventoryRecord.models.js', () => {
 
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import Product from '../src/models/Products.models.js'
-import InventoryRecordModel from '../src/models/InventoryRecord.models.js'
-import DailyInformation from '../src/models/DailyInformation.models.js'
-import UserModel from '../src/models/Users.models.js'
+import Product from '../src/modules/products/products.model.js'
+import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
+import DailyInformation from '../src/modules/daily-information/daily-information.model.js'
+import UserModel from '../src/modules/users/users.model.js'
 import {
   createInventoryRecord,
   getDailySalesSummary,
   getLowStockProducts,
   getInventoryStats
-} from '../src/controllers/InventoryRecord.controllers.js'
-import { loginUser } from '../src/controllers/Users.controllers.js'
+} from '../src/modules/inventory-records/inventory-records.controller.js'
+import { loginUser } from '../src/modules/users/users.controller.js'
+
+const ENTRY_TYPE_ID = '507f1f77bcf86cd799439014'
+const ISSUE_TYPE_ID = '507f1f77bcf86cd799439015'
 
 const mockRes = () => ({
   status: vi.fn().mockReturnThis(),
   json: vi.fn().mockReturnThis()
 })
 
-const mockChainedPopulate = (record) => ({
-  populate: vi.fn().mockImplementation(() => ({
-    populate: vi.fn().mockImplementation(() => ({
-      populate: vi.fn().mockResolvedValue(record)
-    }))
-  }))
-})
+const mockChainedPopulate = (record) => {
+  const result = Promise.resolve(record)
+  const query = {
+    populate: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    lean: vi.fn().mockReturnThis(),
+    then: result.then.bind(result),
+    catch: result.catch.bind(result)
+  }
+  return query
+}
 
 describe('Business logic tests', () => {
   beforeEach(() => {
@@ -108,9 +132,14 @@ describe('Business logic tests', () => {
 
     expect(res.status).toHaveBeenCalledWith(200)
     expect(jwt.sign).toHaveBeenCalledWith(
-      { id: '507f1f77bcf86cd799439013', username: 'admin', isAdmin: true },
+      {
+        id: '507f1f77bcf86cd799439013',
+        username: 'admin',
+        isAdmin: true,
+        tv: 0
+      },
       process.env.SECURITY_JM,
-      { expiresIn: '14d' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     )
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -134,7 +163,7 @@ describe('Business logic tests', () => {
       {
         body: {
           date: '2026-09-03',
-          typeInventory: 'ISSUE',
+          typeInventory: ISSUE_TYPE_ID,
           productName: '507f1f77bcf86cd799439011',
           category: '507f1f77bcf86cd799439012',
           productPrice: 25,
@@ -161,7 +190,7 @@ describe('Business logic tests', () => {
     const populatedRecord = {
       _id: 'record-123',
       date: '2026-09-03',
-      typeInventory: 'ENTRY',
+      typeInventory: { _id: ENTRY_TYPE_ID, stockDirection: 1 },
       productName: {
         _id: '507f1f77bcf86cd799439011',
         productName: 'Coca-Cola'
@@ -191,7 +220,7 @@ describe('Business logic tests', () => {
       {
         body: {
           date: '2026-09-03',
-          typeInventory: 'ENTRY',
+          typeInventory: ENTRY_TYPE_ID,
           productName: '507f1f77bcf86cd799439011',
           category: '507f1f77bcf86cd799439012',
           productPrice: 18,
@@ -212,7 +241,10 @@ describe('Business logic tests', () => {
     expect(res.status).toHaveBeenCalledWith(201)
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        typeInventory: 'ENTRY',
+        typeInventory: expect.objectContaining({
+          _id: ENTRY_TYPE_ID,
+          stockDirection: 1
+        }),
         quantity: 7,
         User: expect.objectContaining({ _id: '507f1f77bcf86cd799439013' })
       })
@@ -224,7 +256,7 @@ describe('Business logic tests', () => {
     const populatedRecord = {
       _id: 'record-124',
       date: '2026-09-03',
-      typeInventory: 'ISSUE',
+      typeInventory: { _id: ISSUE_TYPE_ID, stockDirection: -1 },
       productName: {
         _id: '507f1f77bcf86cd799439011',
         productName: 'Coca-Cola'
@@ -254,7 +286,7 @@ describe('Business logic tests', () => {
       {
         body: {
           date: '2026-09-03',
-          typeInventory: 'ISSUE',
+          typeInventory: ISSUE_TYPE_ID,
           productName: '507f1f77bcf86cd799439011',
           category: '507f1f77bcf86cd799439012',
           productPrice: 25,
@@ -278,13 +310,13 @@ describe('Business logic tests', () => {
 
   it('summarizes only ISSUE records as daily sales', async () => {
     const res = mockRes()
-    InventoryRecordModel.find.mockReturnValue({
-      populate: vi.fn().mockResolvedValue([
-        { typeInventory: 'ENTRY', totalAmount: 100 },
-        { typeInventory: 'ISSUE', totalAmount: 35 },
-        { typeInventory: 'VENTA', totalAmount: '15.50' }
+    InventoryRecordModel.find.mockReturnValue(
+      mockChainedPopulate([
+        { typeInventory: { stockDirection: 1 }, totalAmount: 100 },
+        { typeInventory: { stockDirection: -1 }, totalAmount: 35 },
+        { typeInventory: { stockDirection: -1 }, totalAmount: '15.50' }
       ])
-    })
+    )
 
     await getDailySalesSummary({ query: { date: '2026-09-03' } }, res)
 
@@ -304,21 +336,28 @@ describe('Business logic tests', () => {
 
   it('calculates inventory statistics from products and movements', async () => {
     const res = mockRes()
-    Product.find.mockResolvedValue([
-      { productStock: 10, productPrice: 4, minimumProductStock: 5 },
-      { productStock: 2, productPrice: 20, minimumProductStock: 3 },
-      { productStock: 0, productPrice: 8, minimumProductStock: 1 },
-      { productStock: 5, productPrice: 1, minimumProductStock: 5 }
-    ])
-    InventoryRecordModel.find.mockResolvedValue([
-      { typeInventory: 'ENTRY', totalAmount: 40 },
-      { typeInventory: 'ISSUE', totalAmount: '12.50' },
-      { typeInventory: 'VENTA', totalAmount: 7.5 }
-    ])
+    Product.find.mockReturnValue(
+      mockChainedPopulate([
+        { productStock: 10, productPrice: 4, minimumProductStock: 5 },
+        { productStock: 2, productPrice: 20, minimumProductStock: 3 },
+        { productStock: 0, productPrice: 8, minimumProductStock: 1 },
+        { productStock: 5, productPrice: 1, minimumProductStock: 5 }
+      ])
+    )
+    InventoryRecordModel.find.mockReturnValue(
+      mockChainedPopulate([
+        { typeInventory: { stockDirection: 1 }, totalAmount: 40 },
+        { typeInventory: { stockDirection: -1 }, totalAmount: '12.50' },
+        { typeInventory: { stockDirection: -1 }, totalAmount: 7.5 }
+      ])
+    )
 
     await getInventoryStats({}, res)
 
-    expect(Product.find).toHaveBeenCalledWith({ isActive: { $ne: false } })
+    expect(Product.find).toHaveBeenCalledWith(
+      { isActive: { $ne: false } },
+      expect.any(String)
+    )
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith({
       totalProducts: 4,
@@ -349,7 +388,7 @@ describe('Business logic tests', () => {
 })
 
 describe('Seguridad del login', () => {
-  it('el token dura 14 días con o sin recuérdame', async () => {
+  it('el token dura 7 días y usa HS256', async () => {
     const res = mockRes()
     UserModel.findOne.mockResolvedValue({
       _id: '507f1f77bcf86cd799439013',
@@ -365,7 +404,7 @@ describe('Seguridad del login', () => {
     expect(jwt.sign).toHaveBeenCalledWith(
       expect.any(Object),
       process.env.SECURITY_JM,
-      { expiresIn: '14d' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     )
   })
 

@@ -6,10 +6,11 @@ import {
   getUser,
   registerUser,
   updateUser,
-  deleteUser
-} from '../controllers/Users.controllers.js'
+  deleteUser,
+  logoutUser
+} from './users.controller.js'
 import rateLimit from 'express-rate-limit'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 const loginLimiter = rateLimit({
@@ -22,6 +23,8 @@ const loginLimiter = rateLimit({
 })
 // path login, loginUser controller to validate login
 router.post('/login', loginLimiter, loginUser)
+// cierra todas las sesiones del usuario autenticado
+router.post('/logout', verifyToken, logoutUser)
 // path users/login, registerUser controller to register in database
 router.post('/register', verifyToken, requireAdmin, registerUser)
 // usuarios disponibles para asignar tareas, accesible para cualquier usuario autenticado

@@ -1,6 +1,19 @@
-import SuppliersModel from '../models/ Suppliers.models.js'
+/**
+ * Proveedores. Base: /api/suppliers (requiere token)
+ *
+ * GET    /     -> getSuppliers    query opcional: page, limit, search (nombre, contacto, teléfono)
+ * GET    /:id  -> getSupplier     params: id
+ * POST   /     -> createSupplier  body: { suppliersName*, supplierPhone, suppliersContact, raiseOrder, deliverOrder, isActive }
+ * PUT    /:id  -> updateSupplier  params: id | body: mismos campos que POST
+ * DELETE /:id  -> deleteSupplier  params: id (solo admin)
+ */
+import SuppliersModel from './suppliers.model.js'
 import { isValidObjectId } from 'mongoose'
-import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
+import {
+  createPaginatedResponse,
+  escapeRegex,
+  getPagination
+} from '../../utils/pagination.js'
 
 const getSuppliers = async (req, res) => {
   const pagination = getPagination(req.query)
@@ -9,7 +22,17 @@ const getSuppliers = async (req, res) => {
   }
 
   try {
-    const query = SuppliersModel.find()
+    const search = req.query?.search?.trim()
+    const filter = {}
+    if (search) {
+      const regex = { $regex: escapeRegex(search), $options: 'i' }
+      filter.$or = [
+        { suppliersName: regex },
+        { suppliersContact: regex },
+        { supplierPhone: regex }
+      ]
+    }
+    const query = SuppliersModel.find(filter)
     if (!pagination.requested) {
       const data = await query
       return res.status(200).json(data)
@@ -20,7 +43,7 @@ const getSuppliers = async (req, res) => {
         .sort({ suppliersName: 1 })
         .skip(pagination.skip)
         .limit(pagination.limit),
-      SuppliersModel.countDocuments()
+      SuppliersModel.countDocuments(filter)
     ])
 
     return res

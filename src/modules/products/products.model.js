@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
+import { createSchema } from '../../database/createSchema.js'
 
-const ProductSchema = new mongoose.Schema({
+const ProductSchema = createSchema({
   productName: {
     type: String,
     required: [true, 'Proporcionar un nombre de producto es obligatorio']
@@ -25,7 +26,7 @@ const ProductSchema = new mongoose.Schema({
   },
   minimumProductStock: {
     type: Number,
-    required: [true, 'Proporcionar un stock es obligatorio']
+    required: [true, 'Proporcionar un stock mínimo es obligatorio']
   },
   supplier: {
     type: mongoose.SchemaTypes.ObjectId,

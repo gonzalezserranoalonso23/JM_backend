@@ -1,9 +1,19 @@
-import DailyInformation from '../models/DailyInformation.models.js'
+/**
+ * Resumen diario de ventas. Base: /api/daily-information (requiere token)
+ *
+ * GET    /     -> getDailyInformations
+ * GET    /:id  -> getDailyInformation     params: id
+ * POST   /     -> createDailyInformation  body: { date, cashSales, cardSales, totalSales, totalTransactions }
+ * PUT    /:id  -> updateDailyInformation  params: id | body: mismos campos que POST
+ * DELETE /:id  -> deleteDailyInformation  params: id (solo admin)
+ */
+import DailyInformation from './daily-information.model.js'
 
 import { isValidObjectId } from 'mongoose'
 
 const getDailyInformations = (req, res) => {
   DailyInformation.find()
+    .lean()
     .then((data) => res.status(200).json(data))
     .catch((error) =>
       res.status(500).json({
@@ -95,7 +105,9 @@ const deleteDailyInformation = (req, res) => {
         return res
           .status(404)
           .json({ message: 'Información diaria no encontrada' })
-      res.status(200).json(data)
+      res
+        .status(200)
+        .json({ message: 'Información diaria eliminada exitosamente' })
     })
     .catch((error) =>
       res.status(500).json({

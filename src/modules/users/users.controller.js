@@ -1,14 +1,29 @@
+/**
+ * Usuarios y autenticación. Base: /api/users
+ *
+ * POST   /login       -> loginUser           body: { username, password } | público, limitado a 10 intentos/15 min
+ * POST   /register    -> registerUser        body: { username, password, email, fullName, isAdmin } (solo admin)
+ * GET    /assignable  -> getAssignableUsers  usuarios (username, fullName) para asignar tareas (token)
+ * GET    /            -> getUsers            query opcional: page, limit, search (solo admin)
+ * GET    /:id         -> getUser             params: id (solo admin)
+ * PUT    /:id         -> updateUser          params: id | body: { username, password, email, fullName, isAdmin } (solo admin)
+ * DELETE /:id         -> deleteUser          params: id (solo admin)
+ * POST   /logout      -> logoutUser          cierra todas las sesiones del usuario (invalida sus tokens)
+ * Nunca se devuelve el campo password.
+ */
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import UserModel from '../models/Users.models.js'
+import UserModel from './users.model.js'
 import { isValidObjectId } from 'mongoose'
 import dotenv from 'dotenv'
 import {
   createPaginatedResponse,
   escapeRegex,
   getPagination
-} from '../utils/pagination.js'
+} from '../../utils/pagination.js'
 dotenv.config()
+
+const TOKEN_TTL = process.env.TOKEN_TTL || '7d'
 
 const getAssignableUsers = async (req, res) => {
   try {
@@ -39,7 +54,7 @@ const getUsers = async (req, res) => {
           }))
         }
       : {}
-    const query = UserModel.find(filter).select('-password')
+    const query = UserModel.find(filter).select('-password -tokenVersion')
 
     if (!pagination.requested) {
       const data = await query
@@ -66,7 +81,7 @@ const getUser = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
-    const data = await UserModel.findById(id).select('-password')
+    const data = await UserModel.findById(id).select('-password -tokenVersion')
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
@@ -101,10 +116,11 @@ const loginUser = async (req, res) => {
       {
         id: existUser._id,
         username: existUser.username,
-        isAdmin: existUser.isAdmin === true
+        isAdmin: existUser.isAdmin === true,
+        tv: existUser.tokenVersion ?? 0
       },
       process.env.SECURITY_JM,
-      { expiresIn: '14d' }
+      { expiresIn: TOKEN_TTL, algorithm: 'HS256' }
     )
     res
       .status(200)
@@ -163,18 +179,35 @@ const updateUser = async (req, res) => {
         isAdmin: isAdmin === undefined ? undefined : isAdmin === true
       }).filter(([, value]) => value !== undefined)
     )
+    const revokeSessions = Boolean(password) || update.isAdmin !== undefined
     if (password) update.password = await bcrypt.hash(password, 10)
     const data = await UserModel.findOneAndUpdate(
       { _id: id },
-      { $set: update },
+      revokeSessions
+        ? { $set: update, $inc: { tokenVersion: 1 } }
+        : { $set: update },
       { new: true, runValidators: true }
-    ).select('-password')
+    ).select('-password -tokenVersion')
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
     res
       .status(500)
       .json({ message: 'Error al actualizar el usuario', error: error.message })
+  }
+}
+
+const logoutUser = async (req, res) => {
+  try {
+    await UserModel.updateOne(
+      { _id: req.userId },
+      { $inc: { tokenVersion: 1 } }
+    )
+    res.status(200).json({ message: 'Sesión cerrada' })
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al cerrar sesión', error: error.message })
   }
 }
 
@@ -201,5 +234,6 @@ export {
   loginUser,
   registerUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  logoutUser
 }

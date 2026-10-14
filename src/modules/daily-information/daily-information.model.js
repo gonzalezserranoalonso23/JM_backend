@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
+import { createSchema } from '../../database/createSchema.js'
 
-const DailyInformationSchema = new mongoose.Schema({
+const DailyInformationSchema = createSchema({
   date: {
     type: String,
     required: [true, 'Proporcionar un fecha']

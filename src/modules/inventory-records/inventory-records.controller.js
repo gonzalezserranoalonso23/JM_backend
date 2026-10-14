@@ -1,40 +1,75 @@
-import InventoryRecord from '../models/InventoryRecord.models.js'
-import Product from '../models/Products.models.js'
+/**
+ * Movimientos de inventario (entradas/salidas/ventas) que ajustan el stock del
+ * producto según stockDirection del tipo de inventario.
+ * Base: /api/inventory-records (requiere token)
+ *
+ * GET    /                       -> getInventoryRecords      query: page, limit, search, type, paymentType
+ * GET    /reports/daily-summary  -> getDailySalesSummary     query: date (YYYY-MM-DD)
+ * GET    /reports/low-stock      -> getLowStockProducts      query: page, limit, search, category
+ * GET    /reports/date-range     -> getSalesByDateRange      query: startDate, endDate, page, limit, paymentType, type
+ * GET    /reports/by-type        -> getInventoryByType       query: type
+ * GET    /reports/stats          -> getInventoryStats        sin parámetros
+ * GET    /:id                    -> getInventoryRecord       params: id
+ * POST   /                       -> createInventoryRecord    body: { date, typeInventory, productName, category, paymentType, quantity, productPrice, totalAmount }
+ * POST   /bulk                   -> createInventoryRecords   body: [registros] | { records: [registros] }
+ * PUT    /:id                    -> updateInventoryRecord    params: id | body: campos del registro (reajusta stock)
+ * DELETE /:id                    -> deleteInventoryRecord    params: id (solo admin; revierte stock, 409 si no es posible)
+ */
+import InventoryRecord from './inventory-records.model.js'
+import Product from '../products/products.model.js'
+import TypeInventory from '../type-inventory/type-inventory.model.js'
+import PaymentType from '../payment-types/payment-types.model.js'
 import { isValidObjectId } from 'mongoose'
+import {
+  CATEGORY_FIELDS,
+  PAYMENT_TYPE_FIELDS,
+  PRODUCT_NAME_FIELDS,
+  SUPPLIER_FIELDS,
+  TYPE_INVENTORY_FIELDS
+} from '../../utils/projections.js'
 import {
   createPaginatedResponse,
   escapeRegex,
   getPagination
-} from '../utils/pagination.js'
+} from '../../utils/pagination.js'
 
-const ENTRY_TYPE = 'ENTRY'
-const ISSUE_TYPE = 'ISSUE'
-
-const normalizeInventoryType = (value = '') => {
-  const normalized = String(value).trim().toUpperCase()
-
-  if (['ENTRY', 'ENTRADA', 'IN'].includes(normalized)) return ENTRY_TYPE
-  if (['ISSUE', 'SALIDA', 'OUT', 'VENTA'].includes(normalized)) {
-    return ISSUE_TYPE
+const getInventoryType = async (id) => {
+  if (!isValidObjectId(id)) {
+    const error = new Error('ID de tipo de inventario inválido')
+    error.status = 400
+    throw error
   }
 
-  return null
+  const type = await TypeInventory.findById(id)
+  if (!type) {
+    const error = new Error('Tipo de inventario no encontrado')
+    error.status = 404
+    throw error
+  }
+  return type
 }
 
-const PAYMENT_TYPES = ['EFECTIVO', 'TARJETA']
+const getPaymentType = async (id) => {
+  if (id === undefined || id === null || id === '') return null
+  if (!isValidObjectId(id)) {
+    const error = new Error('ID de tipo de pago inválido')
+    error.status = 400
+    throw error
+  }
 
-// Devuelve el tipo de pago válido, null si no se indicó o undefined si es inválido
-const normalizePaymentType = (value) => {
-  if (value === undefined || value === null || value === '') return null
-  const normalized = String(value).trim().toUpperCase()
-  return PAYMENT_TYPES.includes(normalized) ? normalized : undefined
+  const paymentType = await PaymentType.findById(id)
+  if (!paymentType) {
+    const error = new Error('Tipo de pago no encontrado')
+    error.status = 404
+    throw error
+  }
+  return paymentType
 }
 
-const isIssueType = (value = '') => normalizeInventoryType(value) === ISSUE_TYPE
+const isIssueType = (type) => Number(type?.stockDirection) === -1
 
-// Efecto de un movimiento sobre el stock: las entradas suman, las salidas restan
 const stockDelta = (type, quantity) =>
-  isIssueType(type) ? -Number(quantity) : Number(quantity)
+  Number(type.stockDirection) * Number(quantity)
 
 // Ajuste atómico ($inc): evita carreras entre peticiones simultáneas. Al restar
 // exige stock suficiente, salvo con `force` (reversas internas).
@@ -69,19 +104,56 @@ const rollbackRecord = async (record) => {
   await InventoryRecord.deleteOne({ _id: record._id })
 }
 
-const getInventoryRecords = (req, res) => {
-  InventoryRecord.find()
-    .populate('productName', { __v: 0 })
-    .populate('category', { __v: 0 })
-    .populate('User', { __v: 0, password: 0 })
-    .sort({ date: -1 })
-    .then((data) => res.status(200).json(data))
-    .catch((error) =>
-      res.status(501).json({
-        message: 'Hubo un error al cargar los registros de inventario!',
-        error
-      })
-    )
+const getInventoryRecords = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
+  const filter = {}
+  if (req.query?.type) {
+    if (!isValidObjectId(req.query.type)) {
+      return res
+        .status(400)
+        .json({ message: 'ID de tipo de inventario inválido' })
+    }
+    filter.typeInventory = req.query.type
+  }
+
+  if (req.query?.paymentType) {
+    if (!isValidObjectId(req.query.paymentType)) {
+      return res.status(400).json({ message: 'ID de tipo de pago inválido' })
+    }
+    filter.paymentType = req.query.paymentType
+  }
+
+  try {
+    const query = InventoryRecord.find(filter)
+      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+      .populate('paymentType', PAYMENT_TYPE_FIELDS)
+      .populate('productName', PRODUCT_NAME_FIELDS)
+      .populate('category', CATEGORY_FIELDS)
+      .select('-User')
+      .sort({ date: -1, _id: -1 })
+
+    if (!pagination.requested) {
+      return res.status(200).json(await query)
+    }
+
+    const [data, total] = await Promise.all([
+      query.skip(pagination.skip).limit(pagination.limit),
+      InventoryRecord.countDocuments(filter)
+    ])
+
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Hubo un error al cargar los registros de inventario!',
+      error: error.message
+    })
+  }
 }
 
 const getInventoryRecord = (req, res) => {
@@ -89,9 +161,11 @@ const getInventoryRecord = (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   InventoryRecord.findById(id)
-    .populate('category', { __v: 0 })
-    .populate('productName', { __v: 0 })
-    .populate('User', { __v: 0, password: 0 })
+    .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+    .populate('paymentType', PAYMENT_TYPE_FIELDS)
+    .populate('category', CATEGORY_FIELDS)
+    .populate('productName', PRODUCT_NAME_FIELDS)
+    .select('-User')
     .then((data) => {
       if (!data)
         return res
@@ -110,25 +184,16 @@ const getInventoryRecord = (req, res) => {
 // Lanza un error con `.status` para que el caller (single o bulk) responda igual.
 const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   const { date, typeInventory, productName, category } = payload
-  const paymentType = normalizePaymentType(payload.paymentType)
-  if (paymentType === undefined) {
-    const error = new Error('Tipo de pago inválido. Use EFECTIVO o TARJETA')
-    error.status = 400
-    throw error
-  }
+  const [inventoryType, paymentType] = await Promise.all([
+    getInventoryType(typeInventory),
+    getPaymentType(payload.paymentType)
+  ])
 
   // Los campos numéricos pueden llegar como string desde el formulario;
   // sin castear, `productStock + quantity` concatenaba strings en vez de sumar.
   const productPrice = payload.productPrice
   const quantity = Number(payload.quantity)
   const totalAmount = Number(payload.totalAmount)
-
-  const normalizedType = normalizeInventoryType(typeInventory)
-  if (!normalizedType) {
-    const error = new Error('Tipo de inventario inválido. Use ENTRY o ISSUE')
-    error.status = 400
-    throw error
-  }
 
   if (!isValidObjectId(productName)) {
     const error = new Error('ID de producto inválido')
@@ -161,7 +226,7 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
     throw error
   }
 
-  const isExit = isIssueType(normalizedType)
+  const isExit = isIssueType(inventoryType)
 
   if (isExit && product.productStock < quantity) {
     throw insufficientStockError(product.productStock, quantity)
@@ -173,7 +238,7 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
     throw error
   }
 
-  const stockChange = stockDelta(normalizedType, quantity)
+  const stockChange = stockDelta(inventoryType, quantity)
   const updatedProduct = await adjustStock(productName, stockChange)
   if (!updatedProduct) {
     throw insufficientStockError(product.productStock, quantity)
@@ -183,13 +248,13 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   try {
     savedRecord = await new InventoryRecord({
       date,
-      typeInventory: normalizedType,
+      typeInventory: inventoryType._id,
       productName,
       category,
       productPrice,
       quantity,
       totalAmount,
-      paymentType,
+      paymentType: paymentType?._id ?? null,
       User: authenticatedUserId
     }).save()
   } catch (error) {
@@ -198,9 +263,11 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   }
 
   return InventoryRecord.findById(savedRecord._id)
-    .populate('productName', { __v: 0 })
-    .populate('category', { __v: 0 })
-    .populate('User', { __v: 0, password: 0 })
+    .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+    .populate('paymentType', PAYMENT_TYPE_FIELDS)
+    .populate('productName', PRODUCT_NAME_FIELDS)
+    .populate('category', CATEGORY_FIELDS)
+    .select('-User')
 }
 
 // Normaliza errores de Mongoose (ValidationError/CastError) a un 400 con
@@ -300,16 +367,6 @@ const updateInventoryRecord = async (req, res) => {
   } = req.body
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
-  const normalizedType = normalizeInventoryType(typeInventory)
-  if (!normalizedType)
-    return res.status(400).json({
-      message: 'Tipo de inventario inválido. Use ENTRY o ISSUE'
-    })
-  const normalizedPayment = normalizePaymentType(paymentType)
-  if (normalizedPayment === undefined)
-    return res.status(400).json({
-      message: 'Tipo de pago inválido. Use EFECTIVO o TARJETA'
-    })
 
   try {
     const previous = await InventoryRecord.findById(id)
@@ -318,9 +375,17 @@ const updateInventoryRecord = async (req, res) => {
         .status(404)
         .json({ message: 'Registro de inventario no encontrado' })
 
+    const nextTypeId = typeInventory ?? previous.typeInventory
+    const nextPaymentId =
+      paymentType === undefined ? previous.paymentType : paymentType
+    const [previousType, nextType, nextPayment] = await Promise.all([
+      getInventoryType(previous.typeInventory),
+      getInventoryType(nextTypeId),
+      getPaymentType(nextPaymentId)
+    ])
     const next = {
       date: date ?? previous.date,
-      typeInventory: normalizedType,
+      typeInventory: nextType,
       productName: productName ?? previous.productName,
       quantity: Number(quantity ?? previous.quantity),
       totalAmount: Number(totalAmount ?? previous.totalAmount)
@@ -328,7 +393,7 @@ const updateInventoryRecord = async (req, res) => {
     if (!Number.isFinite(next.quantity) || next.quantity <= 0)
       return res.status(400).json({ message: 'Cantidad inválida' })
 
-    const previousDelta = stockDelta(previous.typeInventory, previous.quantity)
+    const previousDelta = stockDelta(previousType, previous.quantity)
     const nextDelta = stockDelta(next.typeInventory, next.quantity)
     const sameProduct =
       String(previous.productName) === String(next.productName)
@@ -356,13 +421,13 @@ const updateInventoryRecord = async (req, res) => {
       { _id: id },
       {
         date,
-        typeInventory: normalizedType,
-        productName,
-        category,
-        productPrice,
-        quantity,
-        totalAmount,
-        paymentType: normalizedPayment
+        typeInventory: nextType._id,
+        productName: next.productName,
+        category: category ?? previous.category,
+        productPrice: productPrice ?? previous.productPrice,
+        quantity: next.quantity,
+        totalAmount: next.totalAmount,
+        paymentType: nextPayment?._id ?? null
       },
       { new: true }
     )
@@ -397,9 +462,10 @@ const deleteInventoryRecord = async (req, res) => {
         .status(404)
         .json({ message: 'Registro de inventario no encontrado' })
 
+    const inventoryType = await getInventoryType(record.typeInventory)
     const reverted = await adjustStock(
       record.productName,
-      -stockDelta(record.typeInventory, record.quantity)
+      -stockDelta(inventoryType, record.quantity)
     )
     if (!reverted && (await Product.findById(record.productName))) {
       return res.status(409).json({
@@ -428,7 +494,11 @@ const getDailySalesSummary = async (req, res) => {
 
     const query = date ? { date: { $regex: date } } : {}
 
-    const records = await InventoryRecord.find(query).populate('productName')
+    const records = await InventoryRecord.find(query)
+      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+      .populate('paymentType', PAYMENT_TYPE_FIELDS)
+      .populate('productName', PRODUCT_NAME_FIELDS)
+      .lean()
 
     // Filtrar solo salidas (ventas)
     const exits = records.filter((r) => isIssueType(r.typeInventory))
@@ -479,7 +549,9 @@ const getLowStockProducts = async (req, res) => {
       }
       filter.category = category
     }
-    const query = Product.find(filter).populate('category').populate('supplier')
+    const query = Product.find(filter)
+      .populate('category', CATEGORY_FIELDS)
+      .populate('supplier', SUPPLIER_FIELDS)
 
     if (!pagination.requested) {
       const products = await query
@@ -520,95 +592,39 @@ const getSalesByDateRange = async (req, res) => {
       return res.status(400).json({ message: pagination.error })
     }
 
-    if (pagination.requested) {
-      const dateFilter = { date: { $gte: startDate, $lte: endDate } }
-      const filter = { ...dateFilter }
-      const paymentType = normalizePaymentType(req.query.paymentType)
-      if (paymentType === undefined) {
-        return res
-          .status(400)
-          .json({ message: 'Tipo de pago inválido. Use EFECTIVO o TARJETA' })
-      }
-      if (paymentType) filter.paymentType = paymentType
-      if (req.query.type) {
-        const type = normalizeInventoryType(req.query.type)
-        if (!type) {
-          return res
-            .status(400)
-            .json({ message: 'Tipo de inventario inválido' })
-        }
-        filter.typeInventory = type
-      }
-
-      const summaryFilter = { ...dateFilter }
-      if (paymentType) summaryFilter.paymentType = paymentType
-
-      // Los resúmenes cubren todo el período, no solo la página cargada
-      const [records, total, grouped] = await Promise.all([
-        InventoryRecord.find(filter)
-          .populate('productName')
-          .populate('User', { __v: 0, password: 0 })
-          .sort({ date: -1, _id: -1 })
-          .skip(pagination.skip)
-          .limit(pagination.limit),
-        InventoryRecord.countDocuments(filter),
-        InventoryRecord.aggregate([
-          { $match: summaryFilter },
-          {
-            $group: {
-              _id: '$typeInventory',
-              count: { $sum: 1 },
-              totalAmount: { $sum: '$totalAmount' },
-              products: { $addToSet: '$productName' }
-            }
-          }
-        ])
-      ])
-
-      const summary = {
-        [ENTRY_TYPE]: { count: 0, totalAmount: 0, products: 0 },
-        [ISSUE_TYPE]: { count: 0, totalAmount: 0, products: 0 }
-      }
-      for (const group of grouped) {
-        if (summary[group._id]) {
-          summary[group._id] = {
-            count: group.count,
-            totalAmount: group.totalAmount,
-            products: group.products.length
-          }
-        }
-      }
-
-      return res.status(200).json({
-        ...createPaginatedResponse(records, total, pagination),
-        startDate,
-        endDate,
-        summary
-      })
-    }
-
     const filter = {
       date: { $gte: startDate, $lte: endDate }
     }
-    const paymentType = normalizePaymentType(req.query.paymentType)
-    if (paymentType === undefined) {
-      return res
-        .status(400)
-        .json({ message: 'Tipo de pago inválido. Use EFECTIVO o TARJETA' })
+    if (req.query.paymentType) {
+      if (!isValidObjectId(req.query.paymentType)) {
+        return res.status(400).json({ message: 'ID de tipo de pago inválido' })
+      }
+      filter.paymentType = req.query.paymentType
     }
-    if (paymentType) filter.paymentType = paymentType
+    if (req.query.type) {
+      if (!isValidObjectId(req.query.type)) {
+        return res
+          .status(400)
+          .json({ message: 'ID de tipo de inventario inválido' })
+      }
+      filter.typeInventory = req.query.type
+    }
 
-    const records = await InventoryRecord.find(filter)
-      .populate('productName')
-      .populate('User', { __v: 0, password: 0 })
+    const query = InventoryRecord.find(filter)
+      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+      .populate('paymentType', PAYMENT_TYPE_FIELDS)
+      .populate('productName', PRODUCT_NAME_FIELDS)
+      .select('-User')
       .sort({ date: -1 })
+    const records = pagination.requested
+      ? await query.skip(pagination.skip).limit(pagination.limit)
+      : await query
 
-    // Agrupar por tipo de movimiento
     const byType = {}
     let totalRevenue = 0
 
     records.forEach((r) => {
-      const typeName = normalizeInventoryType(r.typeInventory) || ENTRY_TYPE
+      const typeName = r.typeInventory.typeInventory
       if (!byType[typeName]) {
         byType[typeName] = { count: 0, totalAmount: 0, records: [] }
       }
@@ -616,19 +632,55 @@ const getSalesByDateRange = async (req, res) => {
       byType[typeName].totalAmount += parseFloat(r.totalAmount)
       byType[typeName].records.push(r)
 
-      if (isIssueType(typeName)) {
+      if (isIssueType(r.typeInventory)) {
         totalRevenue += parseFloat(r.totalAmount)
       }
     })
 
-    res.status(200).json({
+    const response = {
       startDate,
       endDate,
       totalRevenue,
       totalRecords: records.length,
       byType,
       allRecords: records
-    })
+    }
+    if (pagination.requested) {
+      const summaryFilter = {
+        date: { $gte: startDate, $lte: endDate }
+      }
+      if (filter.paymentType) summaryFilter.paymentType = filter.paymentType
+      const [total, summaryRecords] = await Promise.all([
+        InventoryRecord.countDocuments(filter),
+        InventoryRecord.find(summaryFilter).populate(
+          'typeInventory',
+          TYPE_INVENTORY_FIELDS
+        )
+      ])
+      const summary = {}
+      for (const record of summaryRecords) {
+        const typeName = record.typeInventory.typeInventory
+        if (!summary[typeName]) {
+          summary[typeName] = {
+            count: 0,
+            totalAmount: 0,
+            products: new Set()
+          }
+        }
+        summary[typeName].count += 1
+        summary[typeName].totalAmount += Number(record.totalAmount)
+        summary[typeName].products.add(String(record.productName))
+      }
+      for (const type of Object.values(summary)) {
+        type.products = type.products.size
+      }
+      return res.status(200).json({
+        ...createPaginatedResponse(records, total, pagination),
+        ...response,
+        summary
+      })
+    }
+    return res.status(200).json(response)
   } catch (error) {
     res.status(500).json({
       message: 'Error al obtener ventas por rango de fecha',
@@ -641,23 +693,24 @@ const getInventoryByType = async (req, res) => {
   try {
     const { type } = req.query
 
-    const normalizedType = normalizeInventoryType(type)
-    if (!normalizedType) {
+    if (!isValidObjectId(type)) {
       return res
         .status(400)
-        .json({ message: 'Tipo de inventario inválido. Use ENTRY o ISSUE' })
+        .json({ message: 'ID de tipo de inventario inválido' })
     }
 
     const records = await InventoryRecord.find({
-      typeInventory: normalizedType
+      typeInventory: type
     })
-      .populate('productName', { __v: 0 })
-      .populate('category', { __v: 0 })
-      .populate('User', { __v: 0, password: 0 })
+      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+      .populate('paymentType', PAYMENT_TYPE_FIELDS)
+      .populate('productName', PRODUCT_NAME_FIELDS)
+      .populate('category', CATEGORY_FIELDS)
+      .select('-User')
       .sort({ date: -1 })
 
     res.status(200).json({
-      type: normalizedType,
+      type,
       count: records.length,
       records
     })
@@ -671,8 +724,15 @@ const getInventoryByType = async (req, res) => {
 
 const getInventoryStats = async (req, res) => {
   try {
-    const allProducts = await Product.find({ isActive: { $ne: false } })
-    const allRecords = await InventoryRecord.find()
+    const [allProducts, allRecords] = await Promise.all([
+      Product.find(
+        { isActive: { $ne: false } },
+        'productStock productPrice minimumProductStock'
+      ).lean(),
+      InventoryRecord.find({}, 'totalAmount typeInventory')
+        .populate('typeInventory', 'stockDirection')
+        .lean()
+    ])
 
     const totalProducts = allProducts.length
     const totalValue = allProducts.reduce(

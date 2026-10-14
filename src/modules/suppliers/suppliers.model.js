@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
+import { createSchema } from '../../database/createSchema.js'
 
-const supplierSchema = new mongoose.Schema({
+const supplierSchema = createSchema({
   suppliersName: {
     type: String,
     required: [true, 'Proporcionar un nombre de proveedor'],

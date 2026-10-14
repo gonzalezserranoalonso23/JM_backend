@@ -1,12 +1,23 @@
-import ProductsModel from '../models/Products.models.js'
-import SuppliersModel from '../models/ Suppliers.models.js'
-import CategoriesModel from '../models/Categories.models.js'
+/**
+ * Productos. Base: /api/products (requiere token)
+ *
+ * GET    /     -> getProducts    query opcional: page, limit, search (nombre, proveedor, categoría)
+ * GET    /:id  -> getProduct     params: id
+ * POST   /     -> createProduct  body: { productName*, productDescription, purchasePrice, productPrice,
+ *                                        minimumProductStock, productStock, supplier, category, isActive }
+ * PUT    /:id  -> updateProduct  params: id | body: mismos campos que POST
+ * DELETE /:id  -> deleteProduct  params: id (solo admin)
+ */
+import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../../utils/projections.js'
+import ProductsModel from './products.model.js'
+import SuppliersModel from '../suppliers/suppliers.model.js'
+import CategoriesModel from '../categories/categories.model.js'
 import { isValidObjectId } from 'mongoose'
 import {
   createPaginatedResponse,
   escapeRegex,
   getPagination
-} from '../utils/pagination.js'
+} from '../../utils/pagination.js'
 
 const getProducts = async (req, res) => {
   const pagination = getPagination(req.query)
@@ -32,8 +43,8 @@ const getProducts = async (req, res) => {
       }
     }
     const query = ProductsModel.find(filter)
-      .populate('category', { __v: 0 })
-      .populate('supplier', { __v: 0 })
+      .populate('category', CATEGORY_FIELDS)
+      .populate('supplier', SUPPLIER_FIELDS)
       .lean()
 
     if (!pagination.requested) {
@@ -65,8 +76,8 @@ const getProduct = async (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   try {
     const data = await ProductsModel.findById(id)
-      .populate('category', { __v: 0 })
-      .populate('supplier', { __v: 0 })
+      .populate('category', CATEGORY_FIELDS)
+      .populate('supplier', SUPPLIER_FIELDS)
     if (!data)
       return res.status(404).json({ message: 'Producto no encontrado' })
     res.status(200).json(data)

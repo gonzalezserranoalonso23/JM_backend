@@ -1,8 +1,19 @@
-import TypeInventory from '../models/TypeInventory.models.js'
+/**
+ * Tipos de movimiento de inventario. stockDirection: 1 suma stock, -1 resta.
+ * Base: /api/type-inventory (requiere token)
+ *
+ * GET    /     -> getTypeInventories
+ * GET    /:id  -> getTypeInventory     params: id
+ * POST   /     -> createTypeInventory  body: { typeInventory, stockDirection }
+ * PUT    /:id  -> updateTypeInventory  params: id | body: { typeInventory, stockDirection }
+ * DELETE /:id  -> deleteTypeInventory  params: id (solo admin)
+ */
+import TypeInventory from './type-inventory.model.js'
 import { isValidObjectId } from 'mongoose'
 
 const getTypeInventories = (req, res) => {
   TypeInventory.find()
+    .lean()
     .then((data) => res.status(200).json(data))
     .catch((error) =>
       res.status(500).json({
@@ -32,10 +43,10 @@ const getTypeInventory = (req, res) => {
     )
 }
 const createTypeInventory = (req, res) => {
-  const { typeInventory } = req.body
-  console.log(typeInventory)
+  const { typeInventory, stockDirection } = req.body
   const newTypeInventory = new TypeInventory({
-    typeInventory
+    typeInventory,
+    stockDirection
   })
   newTypeInventory
     .save()
@@ -50,15 +61,16 @@ const createTypeInventory = (req, res) => {
 
 const updateTypeInventory = (req, res) => {
   const { id } = req.params
-  const { typeInventory } = req.body
+  const { typeInventory, stockDirection } = req.body
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   TypeInventory.findOneAndUpdate(
     { _id: id },
     {
-      typeInventory
+      typeInventory,
+      stockDirection
     },
-    { new: true }
+    { new: true, runValidators: true }
   )
     .then((data) => {
       if (!data)

@@ -1,13 +1,14 @@
 import mongoose from 'mongoose'
+import { createSchema } from '../../database/createSchema.js'
 
-const InventoryRecordSchema = new mongoose.Schema({
+const InventoryRecordSchema = createSchema({
   date: {
     type: String,
     required: [true, 'Proporcionar un fecha']
   },
   typeInventory: {
-    type: String,
-    enum: ['ENTRY', 'ISSUE'],
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'TypeInventory',
     required: [true, 'Proporcionar un tipo de inventario']
   },
   productName: {
@@ -22,7 +23,7 @@ const InventoryRecordSchema = new mongoose.Schema({
   },
   productPrice: {
     type: String,
-    required: [true, 'Proporcionar un nombre de contacto']
+    required: [true, 'Proporcionar el precio del producto']
   },
   quantity: {
     type: Number,
@@ -33,8 +34,8 @@ const InventoryRecordSchema = new mongoose.Schema({
     required: [true, 'Proporcionar un monto']
   },
   paymentType: {
-    type: String,
-    enum: ['EFECTIVO', 'TARJETA'],
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PaymentType',
     default: null
   },
   User: {

@@ -5,8 +5,8 @@ import {
   createProduct,
   updateProduct,
   deleteProduct
-} from '../controllers/Products.controllers.js'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+} from './products.controller.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 

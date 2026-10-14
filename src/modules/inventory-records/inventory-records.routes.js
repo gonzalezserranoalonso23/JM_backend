@@ -11,8 +11,8 @@ import {
   getSalesByDateRange,
   getInventoryByType,
   getInventoryStats
-} from '../controllers/InventoryRecord.controllers.js'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+} from './inventory-records.controller.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 

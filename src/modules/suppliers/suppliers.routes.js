@@ -5,8 +5,8 @@ import {
   createSupplier,
   updateSupplier,
   deleteSupplier
-} from '../controllers/Suppliers.controllers.js'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+} from './suppliers.controller.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 

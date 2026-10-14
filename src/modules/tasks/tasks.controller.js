@@ -1,8 +1,26 @@
-import Task from '../models/Tasks.models.js'
-import User from '../models/Users.models.js'
+/**
+ * Tareas internas asignables a usuarios. Base: /api/tasks (requiere token)
+ * Todas las respuestas incluyen createdBy/assignedTo/completedBy (username, email, fullName).
+ *
+ * GET    /           -> getTasks           todas, más recientes primero
+ * GET    /pending    -> getPendingTasks
+ * GET    /completed  -> getCompletedTasks  ordenadas por completedAt
+ * GET    /:id        -> getTask            params: id
+ * POST   /           -> createTask         body: { title*, description, priority = 'medium', assignedTo } (createdBy = token)
+ * PUT    /:id        -> updateTask         params: id | body: { title, description, priority, status, assignedTo }
+ *                                          status 'completed' registra completedBy/completedAt; 'pending' los limpia
+ * DELETE /:id        -> deleteTask         params: id (solo admin)
+ */
+import { USER_FIELDS } from '../../utils/projections.js'
+import Task from './tasks.model.js'
+import User from '../users/users.model.js'
 import { isValidObjectId } from 'mongoose'
 
-const USER_FIELDS = 'username email fullName'
+const withUsers = (query) =>
+  query
+    .populate('createdBy', USER_FIELDS)
+    .populate('assignedTo', USER_FIELDS)
+    .populate('completedBy', USER_FIELDS)
 
 // Devuelve null si no hay asignado, undefined si es inválido o no existe
 const resolveAssignee = async (value) => {
@@ -14,11 +32,7 @@ const resolveAssignee = async (value) => {
 
 export const getTasks = async (req, res) => {
   try {
-    const tasks = await Task.find()
-      .populate('createdBy', USER_FIELDS)
-      .populate('assignedTo', USER_FIELDS)
-      .populate('completedBy', 'username email fullName')
-      .sort({ createdAt: -1 })
+    const tasks = await withUsers(Task.find()).sort({ createdAt: -1 }).lean()
 
     res.status(200).json(tasks)
   } catch (error) {
@@ -32,10 +46,7 @@ export const getTask = async (req, res) => {
   }
 
   try {
-    const task = await Task.findById(req.params.id)
-      .populate('createdBy', USER_FIELDS)
-      .populate('assignedTo', USER_FIELDS)
-      .populate('completedBy', 'username email fullName')
+    const task = await withUsers(Task.findById(req.params.id)).lean()
 
     if (!task) {
       return res.status(404).json({ message: 'Tarea no encontrada' })
@@ -123,10 +134,7 @@ export const updateTask = async (req, res) => {
 
     await task.save()
 
-    const updatedTask = await Task.findById(id)
-      .populate('createdBy', USER_FIELDS)
-      .populate('assignedTo', USER_FIELDS)
-      .populate('completedBy', 'username email fullName')
+    const updatedTask = await withUsers(Task.findById(id)).lean()
 
     res.status(200).json(updatedTask)
   } catch (error) {
@@ -148,7 +156,7 @@ export const deleteTask = async (req, res) => {
       return res.status(404).json({ message: 'Tarea no encontrada' })
     }
 
-    res.status(200).json({ message: 'Tarea eliminada exitosamente', task })
+    res.status(200).json({ message: 'Tarea eliminada exitosamente' })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -156,10 +164,9 @@ export const deleteTask = async (req, res) => {
 
 export const getPendingTasks = async (req, res) => {
   try {
-    const pendingTasks = await Task.find({ status: 'pending' })
-      .populate('createdBy', USER_FIELDS)
-      .populate('assignedTo', USER_FIELDS)
+    const pendingTasks = await withUsers(Task.find({ status: 'pending' }))
       .sort({ createdAt: -1 })
+      .lean()
 
     res.status(200).json(pendingTasks)
   } catch (error) {
@@ -169,11 +176,9 @@ export const getPendingTasks = async (req, res) => {
 
 export const getCompletedTasks = async (req, res) => {
   try {
-    const completedTasks = await Task.find({ status: 'completed' })
-      .populate('createdBy', USER_FIELDS)
-      .populate('assignedTo', USER_FIELDS)
-      .populate('completedBy', 'username email fullName')
+    const completedTasks = await withUsers(Task.find({ status: 'completed' }))
       .sort({ completedAt: -1 })
+      .lean()
 
     res.status(200).json(completedTasks)
   } catch (error) {

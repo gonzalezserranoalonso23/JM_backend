@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
+import { createSchema } from '../../database/createSchema.js'
 
-const userSchema = new mongoose.Schema({
+const userSchema = createSchema({
   username: {
     type: String,
     required: [true, 'Proporcionar un nombre de usuario'],
@@ -8,8 +9,7 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Proporcionar un contraseña'],
-    unique: false
+    required: [true, 'Proporcionar una contraseña']
   },
   email: {
     type: String,
@@ -21,7 +21,16 @@ const userSchema = new mongoose.Schema({
   },
   isAdmin: {
     type: Boolean
+  },
+  // Se incrementa para invalidar todos los tokens emitidos del usuario
+  tokenVersion: {
+    type: Number,
+    default: 0
   }
 })
+
+userSchema.statics.findAuthState = function (id) {
+  return this.findById(id).select('tokenVersion isAdmin').lean()
+}
 
 export default mongoose.model('User', userSchema)

@@ -1,15 +1,22 @@
-import Order from '../models/Orders.models.js'
+/**
+ * Pedidos a proveedores. Base: /api/orders (requiere token)
+ *
+ * GET    /     -> getOrders
+ * GET    /:id  -> getOrder     params: id
+ * POST   /     -> createOrder  body: { supplier*, items* (no vacío), date, totalAmount, status = 'pendiente' }
+ * PUT    /:id  -> updateOrder  params: id | body: { date, supplier, items, totalAmount, status }
+ * DELETE /:id  -> deleteOrder  params: id (solo admin)
+ */
+import { SUPPLIER_FIELDS } from '../../utils/projections.js'
+import Order from './orders.model.js'
 import { isValidObjectId } from 'mongoose'
 
 // Obtener todas las órdenes
 const getOrders = (req, res) => {
   Order.find()
-    .populate('supplier', {
-      suppliersName: 1,
-      suppliersContact: 1,
-      supplierPhone: 1
-    })
+    .populate('supplier', SUPPLIER_FIELDS)
     .sort({ date: -1 })
+    .lean()
     .then((data) => res.status(200).json(data))
     .catch((error) =>
       res.status(500).json({
@@ -28,7 +35,7 @@ const getOrder = (req, res) => {
   }
 
   Order.findById(id)
-    .populate('supplier')
+    .populate('supplier', SUPPLIER_FIELDS)
     .then((data) => {
       if (!data) {
         return res.status(404).json({ message: 'Orden no encontrada' })
@@ -64,7 +71,7 @@ const createOrder = (req, res) => {
   newOrder
     .save()
     .then((data) => {
-      return Order.findById(data._id).populate('supplier')
+      return Order.findById(data._id).populate('supplier', SUPPLIER_FIELDS)
     })
     .then((data) => res.status(201).json(data))
     .catch((error) =>
@@ -95,7 +102,7 @@ const updateOrder = (req, res) => {
     { $set: update },
     { new: true, runValidators: true }
   )
-    .populate('supplier')
+    .populate('supplier', SUPPLIER_FIELDS)
     .then((data) => {
       if (!data) {
         return res.status(404).json({ message: 'Orden no encontrada' })

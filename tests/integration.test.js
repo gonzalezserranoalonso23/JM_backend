@@ -10,6 +10,10 @@ let mongod
 let app
 let auth
 let userId
+let entryTypeId
+let issueTypeId
+let cashPaymentTypeId
+let cardPaymentTypeId
 
 const api = (method, url) =>
   request(app)[method](url).set('Authorization', `Bearer ${auth}`)
@@ -48,6 +52,21 @@ beforeAll(async () => {
     isAdmin: true
   })
   userId = String(user._id)
+  const [entryType, issueType, cashPaymentType, cardPaymentType] =
+    await Promise.all([
+      mongoose
+        .model('TypeInventory')
+        .create({ typeInventory: 'Entrada', stockDirection: 1 }),
+      mongoose
+        .model('TypeInventory')
+        .create({ typeInventory: 'Salida', stockDirection: -1 }),
+      mongoose.model('PaymentType').create({ paymentType: 'Efectivo' }),
+      mongoose.model('PaymentType').create({ paymentType: 'Tarjeta' })
+    ])
+  entryTypeId = String(entryType._id)
+  issueTypeId = String(issueType._id)
+  cashPaymentTypeId = String(cashPaymentType._id)
+  cardPaymentTypeId = String(cardPaymentType._id)
   auth = jwt.sign(
     { id: userId, username: 'admin', isAdmin: true },
     process.env.SECURITY_JM
@@ -144,8 +163,13 @@ describe('Integración con MongoDB real', () => {
   )
   crud(
     '/api/type-inventory',
-    { typeInventory: 'Entrada' },
-    { typeInventory: 'Salida' }
+    { typeInventory: 'Ajuste de entrada', stockDirection: 1 },
+    { typeInventory: 'Ajuste de salida', stockDirection: -1 }
+  )
+  crud(
+    '/api/payment-types',
+    { paymentType: 'Transferencia' },
+    { paymentType: 'Cheque' }
   )
   crud(
     '/api/daily-information',
@@ -263,22 +287,22 @@ describe('Integración con MongoDB real', () => {
     }
     const entry = await api('post', '/api/inventory-records').send({
       ...base,
-      typeInventory: 'ENTRY',
+      typeInventory: entryTypeId,
       quantity: 5,
       totalAmount: 110
     })
     expect(entry.status, JSON.stringify(entry.body)).toBe(201)
     const issue = await api('post', '/api/inventory-records').send({
       ...base,
-      typeInventory: 'ISSUE',
+      typeInventory: issueTypeId,
       quantity: 3,
       totalAmount: 66,
-      paymentType: 'TARJETA'
+      paymentType: cardPaymentTypeId
     })
     expect(issue.status, JSON.stringify(issue.body)).toBe(201)
     const tooMuch = await api('post', '/api/inventory-records').send({
       ...base,
-      typeInventory: 'ISSUE',
+      typeInventory: issueTypeId,
       quantity: 999,
       totalAmount: 1
     })
@@ -289,13 +313,13 @@ describe('Integración con MongoDB real', () => {
 
     const bulk = await api('post', '/api/inventory-records/bulk').send({
       records: [
-        { ...base, typeInventory: 'ENTRY', quantity: 1, totalAmount: 22 },
+        { ...base, typeInventory: entryTypeId, quantity: 1, totalAmount: 22 },
         {
           ...base,
-          typeInventory: 'ISSUE',
+          typeInventory: issueTypeId,
           quantity: 2,
           totalAmount: 44,
-          paymentType: 'EFECTIVO'
+          paymentType: cashPaymentTypeId
         }
       ]
     })
@@ -312,7 +336,12 @@ describe('Integración con MongoDB real', () => {
     const upRec = await api(
       'put',
       `/api/inventory-records/${entry.body._id}`
-    ).send({ ...base, typeInventory: 'ENTRY', quantity: 5, totalAmount: 110 })
+    ).send({
+      ...base,
+      typeInventory: entryTypeId,
+      quantity: 5,
+      totalAmount: 110
+    })
     expect(upRec.status).toBe(200)
 
     // Reporte paginado: la página y el filtro de tipo no alteran el resumen del período
@@ -324,18 +353,18 @@ describe('Integración con MongoDB real', () => {
     expect(paged.body.data).toHaveLength(1)
     expect(paged.body.hasNextPage).toBe(true)
     expect(paged.body.total).toBeGreaterThan(1)
-    expect(paged.body.summary.ENTRY.count).toBeGreaterThan(0)
-    expect(paged.body.summary.ISSUE.count).toBeGreaterThan(0)
+    expect(paged.body.summary.Entrada.count).toBeGreaterThan(0)
+    expect(paged.body.summary.Salida.count).toBeGreaterThan(0)
 
     const issuesOnly = await api(
       'get',
-      '/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&limit=100&type=ISSUE'
+      `/api/inventory-records/reports/date-range?startDate=2000-01-01&endDate=2999-12-31&page=1&limit=100&type=${issueTypeId}`
     )
     expect(issuesOnly.status).toBe(200)
-    expect(issuesOnly.body.total).toBe(paged.body.summary.ISSUE.count)
-    expect(issuesOnly.body.data.every((r) => r.typeInventory === 'ISSUE')).toBe(
-      true
-    )
+    expect(issuesOnly.body.total).toBe(paged.body.summary.Salida.count)
+    expect(
+      issuesOnly.body.data.every((r) => r.typeInventory._id === issueTypeId)
+    ).toBe(true)
     expect(issuesOnly.body.summary).toEqual(paged.body.summary)
     const cardOnly = await api(
       'get',
@@ -345,23 +374,25 @@ describe('Integración con MongoDB real', () => {
       endDate: '2026-10-06',
       page: 1,
       limit: 100,
-      paymentType: 'TARJETA'
+      paymentType: cardPaymentTypeId
     })
     expect(cardOnly.status, JSON.stringify(cardOnly.body)).toBe(200)
     expect(cardOnly.body.data).toHaveLength(1)
-    expect(cardOnly.body.data[0].paymentType).toBe('TARJETA')
-    expect(cardOnly.body.summary.ISSUE.count).toBe(1)
+    expect(cardOnly.body.data[0].paymentType._id).toBe(cardPaymentTypeId)
+    expect(cardOnly.body.summary.Salida.count).toBe(1)
     const exportedCardRecords = await api(
       'get',
       '/api/inventory-records/reports/date-range'
     ).query({
       startDate: '2026-10-06',
       endDate: '2026-10-06',
-      paymentType: 'TARJETA'
+      paymentType: cardPaymentTypeId
     })
     expect(exportedCardRecords.status).toBe(200)
     expect(exportedCardRecords.body.allRecords).toHaveLength(1)
-    expect(exportedCardRecords.body.allRecords[0].paymentType).toBe('TARJETA')
+    expect(exportedCardRecords.body.allRecords[0].paymentType._id).toBe(
+      cardPaymentTypeId
+    )
     const cashOnly = await api(
       'get',
       '/api/inventory-records/reports/date-range'
@@ -370,11 +401,11 @@ describe('Integración con MongoDB real', () => {
       endDate: '2026-10-06',
       page: 1,
       limit: 100,
-      paymentType: 'EFECTIVO'
+      paymentType: cashPaymentTypeId
     })
     expect(cashOnly.status).toBe(200)
     expect(cashOnly.body.data).toHaveLength(1)
-    expect(cashOnly.body.data[0].paymentType).toBe('EFECTIVO')
+    expect(cashOnly.body.data[0].paymentType._id).toBe(cashPaymentTypeId)
     expect(
       (
         await api(
@@ -396,7 +427,7 @@ describe('Integración con MongoDB real', () => {
     for (const url of [
       '/api/inventory-records/reports/low-stock',
       '/api/inventory-records/reports/date-range?startDate=2026-10-01&endDate=2026-10-31',
-      '/api/inventory-records/reports/by-type?type=ISSUE',
+      `/api/inventory-records/reports/by-type?type=${issueTypeId}`,
       '/api/inventory-records/reports/stats'
     ]) {
       const res = await api('get', url)
@@ -503,7 +534,7 @@ describe('Integración con MongoDB real', () => {
 
     // El carrito de salida descuenta cada producto
     const cart = await api('post', '/api/inventory-records/bulk').send({
-      records: [line(cola, 'ISSUE', 4), line(agua, 'ISSUE', 1)]
+      records: [line(cola, issueTypeId, 4), line(agua, issueTypeId, 1)]
     })
     expect(cart.status, JSON.stringify(cart.body)).toBe(201)
     expect(await stockOf(cola)).toBe(6)
@@ -512,7 +543,7 @@ describe('Integración con MongoDB real', () => {
     // Si un renglón falla no queda nada a medias
     const before = (await api('get', '/api/inventory-records')).body.length
     const failed = await api('post', '/api/inventory-records/bulk').send({
-      records: [line(cola, 'ISSUE', 2), line(agua, 'ISSUE', 5)]
+      records: [line(cola, issueTypeId, 2), line(agua, issueTypeId, 5)]
     })
     expect(failed.status).toBe(400)
     expect(failed.body.availableStock).toBe(1)
@@ -525,7 +556,7 @@ describe('Integración con MongoDB real', () => {
     // Salidas simultáneas nunca dejan el stock negativo
     const race = await Promise.all(
       Array.from({ length: 5 }, () =>
-        api('post', '/api/inventory-records').send(line(cola, 'ISSUE', 2))
+        api('post', '/api/inventory-records').send(line(cola, issueTypeId, 2))
       )
     )
     expect(race.filter((r) => r.status === 201)).toHaveLength(3)
@@ -533,18 +564,18 @@ describe('Integración con MongoDB real', () => {
 
     // Editar la cantidad ajusta la diferencia
     const entry = await api('post', '/api/inventory-records').send(
-      line(cola, 'ENTRY', 5)
+      line(cola, entryTypeId, 5)
     )
     expect(await stockOf(cola)).toBe(5)
     const edited = await api(
       'put',
       `/api/inventory-records/${entry.body._id}`
-    ).send(line(cola, 'ENTRY', 8))
+    ).send(line(cola, entryTypeId, 8))
     expect(edited.status, JSON.stringify(edited.body)).toBe(200)
     expect(await stockOf(cola)).toBe(8)
 
     // Borrar una entrada ya consumida se bloquea; una vigente revierte el stock
-    await api('post', '/api/inventory-records').send(line(cola, 'ISSUE', 7))
+    await api('post', '/api/inventory-records').send(line(cola, issueTypeId, 7))
     const blocked = await api(
       'delete',
       `/api/inventory-records/${entry.body._id}`
@@ -553,7 +584,7 @@ describe('Integración con MongoDB real', () => {
     expect(await stockOf(cola)).toBe(1)
 
     const sale = await api('post', '/api/inventory-records').send(
-      line(agua, 'ISSUE', 1)
+      line(agua, issueTypeId, 1)
     )
     expect(await stockOf(agua)).toBe(0)
     expect(
@@ -582,9 +613,19 @@ describe('Integración con MongoDB real', () => {
 })
 
 describe('Autenticación y roles', () => {
+  let regularId
+  beforeAll(async () => {
+    const regular = await mongoose.model('User').create({
+      username: 'regular',
+      password: 'x',
+      email: 'regular@jm.test',
+      isAdmin: false
+    })
+    regularId = String(regular._id)
+  })
   const userToken = () =>
     jwt.sign(
-      { id: userId, username: 'user', isAdmin: false },
+      { id: regularId, username: 'regular', isAdmin: false },
       process.env.SECURITY_JM
     )
   const as = (token, method, url) =>
@@ -618,6 +659,39 @@ describe('Autenticación y roles', () => {
     expect(
       (await api('delete', `/api/categories/${created.body._id}`)).status
     ).toBe(200)
+  })
+
+  it('logout invalida los tokens emitidos del usuario', async () => {
+    const t = userToken()
+    expect((await as(t, 'get', '/api/products')).status).toBe(200)
+    expect((await as(t, 'post', '/api/users/logout')).status).toBe(200)
+    expect((await as(t, 'get', '/api/products')).status).toBe(401)
+  })
+
+  it('rechaza tokens de usuarios eliminados y de otro algoritmo', async () => {
+    const ghost = new mongoose.Types.ObjectId().toString()
+    const deleted = jwt.sign(
+      { id: ghost, isAdmin: true },
+      process.env.SECURITY_JM
+    )
+    expect((await as(deleted, 'get', '/api/products')).status).toBe(401)
+    const hs512 = jwt.sign({ id: userId }, process.env.SECURITY_JM, {
+      algorithm: 'HS512'
+    })
+    expect((await as(hs512, 'get', '/api/products')).status).toBe(401)
+  })
+
+  it('no expone __v, ni en documentos creados antes del cambio', async () => {
+    const created = await api('post', '/api/categories').send({
+      categories: 'SinVersion'
+    })
+    expect(created.body).not.toHaveProperty('__v')
+    await mongoose.connection
+      .collection('categories')
+      .updateOne({ categories: 'SinVersion' }, { $set: { __v: 0 } })
+    const list = await api('get', '/api/categories')
+    expect(JSON.stringify(list.body)).not.toContain('__v')
+    await api('delete', `/api/categories/${created.body._id}`)
   })
 
   it('login incluye isAdmin en el JWT', async () => {

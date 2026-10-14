@@ -8,23 +8,30 @@ import helmet from 'helmet'
 const app = express()
 
 // Routes
-import userRouter from './routes/Users.routes.js'
-import CategoriesRouter from './routes/Categories.routes.js'
-import SuppliersRouter from './routes/Suppliers.routes.js'
-import ProductsRouter from './routes/Products.routes.js'
-import typeInventory from './routes/TypeInventory.routes.js'
-import InventoryRecordsRouter from './routes/InventoryRecord.routes.js'
-import DailyInformationRouter from './routes/DailyInformation.routes.js'
-import OrdersRouter from './routes/Orders.routes.js'
-import TasksRouter from './routes/Tasks.routes.js'
+import userRouter from './modules/users/users.routes.js'
+import CategoriesRouter from './modules/categories/categories.routes.js'
+import SuppliersRouter from './modules/suppliers/suppliers.routes.js'
+import ProductsRouter from './modules/products/products.routes.js'
+import typeInventory from './modules/type-inventory/type-inventory.routes.js'
+import paymentType from './modules/payment-types/payment-types.routes.js'
+import InventoryRecordsRouter from './modules/inventory-records/inventory-records.routes.js'
+import DailyInformationRouter from './modules/daily-information/daily-information.routes.js'
+import OrdersRouter from './modules/orders/orders.routes.js'
+import TasksRouter from './modules/tasks/tasks.routes.js'
 
 dotenv.config()
 app.use(morgan('tiny'))
 app.disable('x-powered-by')
+// Railway/Vercel van detrás de un proxy: sin esto el rate limit ve una sola IP
+app.set('trust proxy', 1)
 app.use(helmet())
 app.use(compression())
 app.use(express.json({ limit: '1mb' }))
-const allowedOrigins = [process.env.CLIENT, process.env.DEV]
+const allowedOrigins = [
+  process.env.CLIENT,
+  process.env.DEV,
+  process.env.DEV_MOBILE
+]
   .filter(Boolean)
   .map((origin) => origin.trim().replace(/\/+$/, ''))
 const corsOptions = {
@@ -42,6 +49,7 @@ app.get('/', (req, res) => {
 })
 app.use('/api/users', userRouter)
 app.use('/api/type-inventory', typeInventory)
+app.use('/api/payment-types', paymentType)
 app.use('/api/categories', CategoriesRouter)
 app.use('/api/suppliers', SuppliersRouter)
 app.use('/api/products', ProductsRouter)

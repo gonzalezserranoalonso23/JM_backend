@@ -5,9 +5,9 @@ import {
   createTypeInventory,
   updateTypeInventory,
   deleteTypeInventory
-} from '../controllers/TypeInventory.controllers.js'
+} from './type-inventory.controller.js'
 
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 

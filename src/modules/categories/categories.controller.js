@@ -1,6 +1,18 @@
-import CategoriesModel from '../models/Categories.models.js'
+/**
+ * Categorías de productos. Base: /api/categories (requiere token)
+ *
+ * GET    /            -> getCategories   query opcional: page, limit, search (sin ellos devuelve todo)
+ * GET    /:id         -> getCategory     params: id
+ * POST   /            -> createCategory  body: { categories }
+ * PUT    /:id         -> updateCategory  params: id | body: { categories }
+ * DELETE /:id         -> deleteCategory  params: id (solo admin)
+ */
+import CategoriesModel from './categories.model.js'
 import { isValidObjectId } from 'mongoose'
-import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
+import {
+  createPaginatedResponse,
+  getPagination
+} from '../../utils/pagination.js'
 
 const getCategories = async (req, res) => {
   const pagination = getPagination(req.query)

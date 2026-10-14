@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
+import { createSchema } from '../../database/createSchema.js'
 
-const CategorySchema = new mongoose.Schema({
+const CategorySchema = createSchema({
   categories: {
     type: String,
     unique: true,

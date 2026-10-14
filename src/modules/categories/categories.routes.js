@@ -5,8 +5,8 @@ import {
   createCategory,
   updateCategory,
   deleteCategory
-} from '../controllers/Categories.controllers.js'
-import verifyToken, { requireAdmin } from '../middlewares/verifyToken.js'
+} from './categories.controller.js'
+import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 
 const router = Router()
 
