@@ -5,10 +5,11 @@
  * GET    /:id  -> getPaymentType    params: id
  * POST   /     -> createPaymentType body: campos del modelo (solo admin)
  * PUT    /:id  -> updatePaymentType params: id | body: campos del modelo (solo admin)
- * DELETE /:id  -> deletePaymentType params: id (solo admin)
+ * DELETE /:id  -> deletePaymentType params: id (solo admin; 409 si hay registros que lo usan)
  */
 import { isValidObjectId } from 'mongoose'
 import PaymentType from './payment-types.model.js'
+import InventoryRecord from '../inventory-records/inventory-records.model.js'
 
 const getPaymentTypes = async (req, res) => {
   try {
@@ -81,6 +82,13 @@ const deletePaymentType = async (req, res) => {
   }
 
   try {
+    const inUse = await InventoryRecord.exists({ paymentType: req.params.id })
+    if (inUse) {
+      return res.status(409).json({
+        message:
+          'No se puede eliminar: hay registros de inventario con este método de pago'
+      })
+    }
     const result = await PaymentType.deleteOne({ _id: req.params.id })
     if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Tipo de pago no encontrado' })

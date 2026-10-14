@@ -406,6 +406,14 @@ describe('Integración con MongoDB real', () => {
     expect(cashOnly.status).toBe(200)
     expect(cashOnly.body.data).toHaveLength(1)
     expect(cashOnly.body.data[0].paymentType._id).toBe(cashPaymentTypeId)
+    const blockedDelete = await api(
+      'delete',
+      `/api/payment-types/${cashPaymentTypeId}`
+    )
+    expect(blockedDelete.status).toBe(409)
+    expect(
+      (await api('get', `/api/payment-types/${cashPaymentTypeId}`)).status
+    ).toBe(200)
     expect(
       (
         await api(
