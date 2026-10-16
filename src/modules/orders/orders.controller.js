@@ -3,7 +3,7 @@
  *
  * GET    /     -> getOrders
  * GET    /:id  -> getOrder     params: id
- * POST   /     -> createOrder  body: { supplier*, items* (no vacío), date, totalAmount, status = 'pendiente' }
+ * POST   /     -> createOrder  body: { supplier, items* (no vacío), date, totalAmount, status = 'pendiente' }
  * PUT    /:id  -> updateOrder  params: id | body: { date, supplier, items, totalAmount, status }
  * DELETE /:id  -> deleteOrder  params: id (solo admin)
  */
@@ -14,7 +14,7 @@ import { isValidObjectId } from 'mongoose'
 // Obtener todas las órdenes
 const getOrders = (req, res) => {
   Order.find()
-    .populate('supplier', SUPPLIER_FIELDS)
+    .populate('supplier items.supplier', SUPPLIER_FIELDS)
     .sort({ date: -1 })
     .lean()
     .then((data) => res.status(200).json(data))
@@ -35,7 +35,7 @@ const getOrder = (req, res) => {
   }
 
   Order.findById(id)
-    .populate('supplier', SUPPLIER_FIELDS)
+    .populate('supplier items.supplier', SUPPLIER_FIELDS)
     .then((data) => {
       if (!data) {
         return res.status(404).json({ message: 'Orden no encontrada' })
@@ -54,9 +54,9 @@ const getOrder = (req, res) => {
 const createOrder = (req, res) => {
   const { date, supplier, items, totalAmount, status } = req.body
 
-  if (!supplier || !items || items.length === 0) {
+  if (!items || items.length === 0) {
     return res.status(400).json({
-      message: 'Proporciona proveedor e items'
+      message: 'Proporciona items'
     })
   }
 
@@ -71,7 +71,7 @@ const createOrder = (req, res) => {
   newOrder
     .save()
     .then((data) => {
-      return Order.findById(data._id).populate('supplier', SUPPLIER_FIELDS)
+      return Order.findById(data._id).populate('supplier items.supplier', SUPPLIER_FIELDS)
     })
     .then((data) => res.status(201).json(data))
     .catch((error) =>
@@ -102,7 +102,7 @@ const updateOrder = (req, res) => {
     { $set: update },
     { new: true, runValidators: true }
   )
-    .populate('supplier', SUPPLIER_FIELDS)
+    .populate('supplier items.supplier', SUPPLIER_FIELDS)
     .then((data) => {
       if (!data) {
         return res.status(404).json({ message: 'Orden no encontrada' })

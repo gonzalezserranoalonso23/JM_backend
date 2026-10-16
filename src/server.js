@@ -5,9 +5,6 @@ if (!process.env.SECURITY_JM) {
   console.error('SECURITY_JM debe estar definido')
   process.exit(1)
 }
-if (process.env.SECURITY_JM.length < 32) {
-  console.warn('Aviso: SECURITY_JM es corto, se recomiendan 32+ caracteres')
-}
 
 connection()
   .then(() => {

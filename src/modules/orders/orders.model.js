@@ -9,8 +9,7 @@ const OrderSchema = createSchema(
     },
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Supplier',
-      required: [true, 'Proporcionar un proveedor']
+      ref: 'Supplier'
     },
     items: [
       {
@@ -19,6 +18,10 @@ const OrderSchema = createSchema(
           ref: 'Product'
         },
         productName: String,
+        supplier: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Supplier'
+        },
         quantity: {
           type: Number,
           required: [true, 'Proporcionar cantidad']
