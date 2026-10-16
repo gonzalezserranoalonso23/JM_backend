@@ -78,7 +78,7 @@ const updateDailyInformation = (req, res) => {
       totalSales,
       totalTransactions
     },
-    { new: true }
+    { returnDocument: 'after' }
   )
     .then((data) => {
       if (!data)

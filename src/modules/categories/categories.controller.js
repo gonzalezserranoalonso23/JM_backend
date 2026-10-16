@@ -87,7 +87,7 @@ const updateCategory = async (req, res) => {
     const data = await CategoriesModel.findOneAndUpdate(
       { _id: id },
       { categories },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!data)
       return res.status(404).json({ message: 'Categoría no encontrada' })

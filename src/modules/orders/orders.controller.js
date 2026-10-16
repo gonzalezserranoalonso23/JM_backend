@@ -71,7 +71,10 @@ const createOrder = (req, res) => {
   newOrder
     .save()
     .then((data) => {
-      return Order.findById(data._id).populate('supplier items.supplier', SUPPLIER_FIELDS)
+      return Order.findById(data._id).populate(
+        'supplier items.supplier',
+        SUPPLIER_FIELDS
+      )
     })
     .then((data) => res.status(201).json(data))
     .catch((error) =>
@@ -100,7 +103,7 @@ const updateOrder = (req, res) => {
   Order.findByIdAndUpdate(
     id,
     { $set: update },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   )
     .populate('supplier items.supplier', SUPPLIER_FIELDS)
     .then((data) => {

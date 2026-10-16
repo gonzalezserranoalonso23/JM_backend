@@ -70,7 +70,7 @@ const updateTypeInventory = (req, res) => {
       typeInventory,
       stockDirection
     },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   )
     .then((data) => {
       if (!data)

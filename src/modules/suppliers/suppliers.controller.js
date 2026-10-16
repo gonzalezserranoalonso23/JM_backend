@@ -127,7 +127,7 @@ const updateSupplier = async (req, res) => {
         deliverOrder,
         isActive
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!data)
       return res.status(404).json({ message: 'Proveedor no encontrado' })

@@ -186,7 +186,7 @@ const updateUser = async (req, res) => {
       revokeSessions
         ? { $set: update, $inc: { tokenVersion: 1 } }
         : { $set: update },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-password -tokenVersion')
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)

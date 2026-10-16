@@ -172,7 +172,7 @@ const updateProduct = async (req, res) => {
         category,
         isActive
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!data)
       return res.status(404).json({ message: 'Producto no encontrado' })

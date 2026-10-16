@@ -236,7 +236,7 @@ describe('Business logic tests', () => {
     expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: '507f1f77bcf86cd799439011' },
       { $inc: { productStock: 7 } },
-      { new: true }
+      { returnDocument: 'after' }
     )
     expect(res.status).toHaveBeenCalledWith(201)
     expect(res.json).toHaveBeenCalledWith(
@@ -302,7 +302,7 @@ describe('Business logic tests', () => {
     expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: '507f1f77bcf86cd799439011', productStock: { $gte: 3 } },
       { $inc: { productStock: -3 } },
-      { new: true }
+      { returnDocument: 'after' }
     )
     expect(DailyInformation.findOne).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(201)

@@ -62,7 +62,7 @@ const updatePaymentType = async (req, res) => {
     const paymentType = await PaymentType.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
     if (!paymentType) {
       return res.status(404).json({ message: 'Tipo de pago no encontrado' })

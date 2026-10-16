@@ -80,7 +80,7 @@ const adjustStock = (productId, delta, { force = false } = {}) => {
   return Product.findOneAndUpdate(
     filter,
     { $inc: { productStock: delta } },
-    { new: true }
+    { returnDocument: 'after' }
   )
 }
 
@@ -430,7 +430,7 @@ const updateInventoryRecord = async (req, res) => {
         totalAmount: next.totalAmount,
         paymentType: nextPayment?._id ?? null
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
     res.status(200).json(data)
   } catch (rawError) {
