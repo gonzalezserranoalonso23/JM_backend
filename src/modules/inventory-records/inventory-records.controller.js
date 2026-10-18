@@ -3,7 +3,7 @@
  * producto según stockDirection del tipo de inventario.
  * Base: /api/inventory-records (requiere token)
  *
- * GET    /                       -> getInventoryRecords      query: page, limit, search, type, paymentType
+ * GET    /                       -> getInventoryRecords      query: page, limit, search (producto o fecha), type, direction (1 entradas | -1 salidas), paymentType
  * GET    /reports/daily-summary  -> getDailySalesSummary     query: date (YYYY-MM-DD)
  * GET    /reports/low-stock      -> getLowStockProducts      query: page, limit, search, category
  * GET    /reports/date-range     -> getSalesByDateRange      query: startDate, endDate, page, limit, paymentType, type (_id)
@@ -128,7 +128,36 @@ const getInventoryRecords = async (req, res) => {
     filter.paymentType = req.query.paymentType
   }
 
+  const direction = req.query?.direction
+  if (direction !== undefined && !['1', '-1'].includes(String(direction))) {
+    return res.status(400).json({ message: 'direction debe ser 1 o -1' })
+  }
+
   try {
+    if (direction !== undefined) {
+      const types = await TypeInventory.find(
+        { stockDirection: Number(direction) },
+        { _id: 1 }
+      ).lean()
+      const typeIds = types.map((item) => item._id)
+      filter.typeInventory = filter.typeInventory
+        ? { $in: typeIds.filter((id) => String(id) === filter.typeInventory) }
+        : { $in: typeIds }
+    }
+
+    const search = req.query?.search?.trim()
+    if (search) {
+      const regex = { $regex: escapeRegex(search), $options: 'i' }
+      const products = await Product.find(
+        { productName: regex },
+        { _id: 1 }
+      ).lean()
+      filter.$or = [
+        { productName: { $in: products.map((item) => item._id) } },
+        { date: regex }
+      ]
+    }
+
     const query = InventoryRecord.find(filter)
       .populate('typeInventory', TYPE_INVENTORY_FIELDS)
       .populate('paymentType', PAYMENT_TYPE_FIELDS)
