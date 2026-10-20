@@ -1,7 +1,7 @@
 /**
  * Productos. Base: /api/products (requiere token)
  *
- * GET    /     -> getProducts    query opcional: page, limit, search (nombre, proveedor, categoría)
+ * GET    /     -> getProducts    query opcional: page, limit, search (nombre o proveedor)
  * GET    /:id  -> getProduct     params: id
  * POST   /     -> createProduct  body: { productName*, productDescription, purchasePrice, productPrice,
  *                                        minimumProductStock, productStock, supplier, category, isActive }
@@ -11,7 +11,6 @@
 import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../../utils/projections.js'
 import ProductsModel from './products.model.js'
 import SuppliersModel from '../suppliers/suppliers.model.js'
-import CategoriesModel from '../categories/categories.model.js'
 import { isValidObjectId } from 'mongoose'
 import {
   createPaginatedResponse,
@@ -30,15 +29,14 @@ const getProducts = async (req, res) => {
     let filter = {}
     if (search) {
       const regex = { $regex: escapeRegex(search), $options: 'i' }
-      const [suppliers, categories] = await Promise.all([
-        SuppliersModel.find({ suppliersName: regex }, { _id: 1 }).lean(),
-        CategoriesModel.find({ categories: regex }, { _id: 1 }).lean()
-      ])
+      const suppliers = await SuppliersModel.find(
+        { suppliersName: regex },
+        { _id: 1 }
+      ).lean()
       filter = {
         $or: [
           { productName: regex },
-          { supplier: { $in: suppliers.map((item) => item._id) } },
-          { category: { $in: categories.map((item) => item._id) } }
+          { supplier: { $in: suppliers.map((item) => item._id) } }
         ]
       }
     }

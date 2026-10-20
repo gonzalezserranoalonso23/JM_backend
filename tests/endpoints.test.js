@@ -453,7 +453,6 @@ describe('HTTP endpoint coverage', () => {
     ProductModel.find.mockReturnValueOnce(makeQuery([]))
     ProductModel.countDocuments.mockResolvedValueOnce(1)
     SupplierModel.find.mockReturnValueOnce(makeQuery([{ _id: 'sup1' }]))
-    CategoriesModel.find.mockReturnValueOnce(makeQuery([{ _id: 'cat1' }]))
     UserModel.find.mockReturnValueOnce(makeQuery([]))
     UserModel.countDocuments.mockResolvedValueOnce(1)
 
@@ -470,8 +469,7 @@ describe('HTTP endpoint coverage', () => {
     expect(ProductModel.find).toHaveBeenLastCalledWith({
       $or: [
         { productName: { $regex: 'leche', $options: 'i' } },
-        { supplier: { $in: ['sup1'] } },
-        { category: { $in: ['cat1'] } }
+        { supplier: { $in: ['sup1'] } }
       ]
     })
     expect(userResponse.status).toBe(200)

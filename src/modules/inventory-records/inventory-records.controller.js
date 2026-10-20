@@ -154,7 +154,7 @@ const getInventoryRecords = async (req, res) => {
       ).lean()
       filter.$or = [
         { productName: { $in: products.map((item) => item._id) } },
-        { date: regex }
+        ...buildDateConditions(search)
       ]
     }
 
@@ -184,6 +184,25 @@ const getInventoryRecords = async (req, res) => {
       error: error.message
     })
   }
+}
+
+// `date` se guarda como YYYY-MM-DD. Además del texto tal cual, acepta DD/MM/AAAA, DD/MM y MM/AAAA.
+const buildDateConditions = (search) => {
+  const conditions = [{ date: { $regex: escapeRegex(search), $options: 'i' } }]
+  if (!/^\d{1,4}([/.-]\d{1,4}){1,2}$/.test(search)) return conditions
+
+  const parts = search.split(/[/.-]/)
+  const pad = (value) => value.padStart(2, '0')
+  const [a, b, c] = parts
+
+  if (parts.length === 3 && c.length === 4 && a.length <= 2 && b.length <= 2) {
+    conditions.push({ date: `${c}-${pad(b)}-${pad(a)}` })
+  } else if (parts.length === 2 && a.length <= 2 && b.length <= 2) {
+    conditions.push({ date: { $regex: `-${pad(b)}-${pad(a)}$` } })
+  } else if (parts.length === 2 && a.length <= 2 && b.length === 4) {
+    conditions.push({ date: { $regex: `^${b}-${pad(a)}-` } })
+  }
+  return conditions
 }
 
 const getInventoryRecord = (req, res) => {

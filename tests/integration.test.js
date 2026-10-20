@@ -255,8 +255,8 @@ describe('Integración con MongoDB real', () => {
     expect(productRes.status, JSON.stringify(productRes.body)).toBe(201)
     const product = productRes.body
 
-    // Búsqueda por nombre, proveedor y categoría
-    for (const search of ['leche', 'distribuidora', 'abarrotes']) {
+    // Búsqueda por nombre y proveedor; la categoría no cuenta
+    for (const search of ['leche', 'distribuidora']) {
       const res = await api('get', '/api/products').query({
         page: 1,
         limit: 10,
@@ -265,6 +265,12 @@ describe('Integración con MongoDB real', () => {
       expect(res.status).toBe(200)
       expect(res.body.data.map((p) => p._id)).toContain(product._id)
     }
+    const byCategory = await api('get', '/api/products').query({
+      page: 1,
+      limit: 10,
+      search: 'abarrotes'
+    })
+    expect(byCategory.body.data).toHaveLength(0)
     const none = await api('get', '/api/products').query({
       page: 1,
       limit: 10,
