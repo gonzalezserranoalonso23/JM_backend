@@ -1,6 +1,11 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
+const maxThreeDecimals = {
+  validator: (v) => Math.abs(v * 1000 - Math.round(v * 1000)) < 1e-6,
+  message: 'Solo se permiten hasta 3 decimales'
+}
+
 const ProductSchema = createSchema({
   productName: {
     type: String,
@@ -12,20 +17,24 @@ const ProductSchema = createSchema({
   },
   purchasePrice: {
     type: Number,
+    validate: maxThreeDecimals,
     required: [true, 'Proporcionar el precio de compra es obligatorio'],
     min: [0, 'El precio de compra no puede ser negativo']
   },
   productPrice: {
     type: Number,
+    validate: maxThreeDecimals,
     required: [true, 'Proporcionar el precio de venta es obligatorio'],
     min: [0, 'El precio de venta no puede ser negativo']
   },
   productStock: {
     type: Number,
+    validate: maxThreeDecimals,
     required: [true, 'Proporcionar un stock es obligatorio']
   },
   minimumProductStock: {
     type: Number,
+    validate: maxThreeDecimals,
     required: [true, 'Proporcionar un stock mínimo es obligatorio']
   },
   supplier: {

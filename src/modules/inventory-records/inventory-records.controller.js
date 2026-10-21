@@ -28,6 +28,7 @@ import {
   SUPPLIER_FIELDS,
   TYPE_INVENTORY_FIELDS
 } from '../../utils/projections.js'
+import { lineTotal } from '../../utils/money.js'
 import {
   createPaginatedResponse,
   escapeRegex,
@@ -242,7 +243,8 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   // sin castear, `productStock + quantity` concatenaba strings en vez de sumar.
   const productPrice = payload.productPrice
   const quantity = Number(payload.quantity)
-  const totalAmount = Number(payload.totalAmount)
+  // El total lo calcula el servidor; el enviado solo se usa si no se puede calcular
+  const totalAmount = lineTotal(quantity, productPrice) ?? Number(payload.totalAmount)
 
   if (!isValidObjectId(productName)) {
     const error = new Error('ID de producto inválido')
@@ -438,6 +440,11 @@ const updateInventoryRecord = async (req, res) => {
       productName: productName ?? previous.productName,
       quantity: Number(quantity ?? previous.quantity),
       totalAmount: Number(totalAmount ?? previous.totalAmount)
+    }
+    if (quantity !== undefined || productPrice !== undefined) {
+      next.totalAmount =
+        lineTotal(next.quantity, productPrice ?? previous.productPrice) ??
+        next.totalAmount
     }
     if (!Number.isFinite(next.quantity) || next.quantity <= 0)
       return res.status(400).json({ message: 'Cantidad inválida' })

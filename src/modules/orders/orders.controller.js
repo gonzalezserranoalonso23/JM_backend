@@ -8,14 +8,28 @@
  * DELETE /:id  -> deleteOrder  params: id (solo admin)
  */
 import { SUPPLIER_FIELDS } from '../../utils/projections.js'
+import { lineTotal, roundMoney } from '../../utils/money.js'
 import Order from './orders.model.js'
 import { isValidObjectId } from 'mongoose'
+
+// Subtotal por línea y total de la orden calculados en el servidor
+const withTotals = (items) => {
+  const priced = items.map((item) => {
+    const subtotal = lineTotal(item.quantity, item.price)
+    return subtotal === null ? item : { ...item, subtotal }
+  })
+  const totalAmount = roundMoney(
+    priced.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0)
+  )
+  return { items: priced, totalAmount }
+}
 
 // Obtener todas las órdenes
 const getOrders = (req, res) => {
   Order.find()
     .populate('supplier items.supplier', SUPPLIER_FIELDS)
-    .sort({ date: -1 })
+    // Pendientes primero ('pendiente' > 'confirmado') y luego la fecha más reciente
+    .sort({ status: -1, date: -1 })
     .lean()
     .then((data) => res.status(200).json(data))
     .catch((error) =>
@@ -60,11 +74,12 @@ const createOrder = (req, res) => {
     })
   }
 
+  const computed = withTotals(items)
   const newOrder = new Order({
     date,
     supplier,
-    items,
-    totalAmount: totalAmount || 0,
+    items: computed.items,
+    totalAmount: computed.totalAmount,
     status: status || 'pendiente'
   })
 
@@ -94,8 +109,15 @@ const updateOrder = (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   }
 
+  const computed = Array.isArray(items) ? withTotals(items) : null
   const update = Object.fromEntries(
-    Object.entries({ date, supplier, items, totalAmount, status }).filter(
+    Object.entries({
+      date,
+      supplier,
+      items: computed?.items ?? items,
+      totalAmount: computed?.totalAmount ?? totalAmount,
+      status
+    }).filter(
       ([, value]) => value !== undefined
     )
   )
