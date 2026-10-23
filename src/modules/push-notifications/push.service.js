@@ -1,7 +1,7 @@
 import PushSubscription from './push-notifications.model.js'
 import { sendPushNotification } from '../../utils/webPush.js'
 
-const staleStatus = new Set([404, 410])
+const staleStatus = new Set([401, 403, 404, 410])
 
 export const sendPushToUser = async (userId, payload) => {
   if (!userId) return
