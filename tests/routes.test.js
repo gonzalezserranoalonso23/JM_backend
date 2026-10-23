@@ -50,6 +50,7 @@ describe('Route registration smoke tests', () => {
     expect(getRoutes(InventoryRecordRouter)).toEqual(
       expect.arrayContaining([
         { method: 'GET', path: '/' },
+        { method: 'GET', path: '/liveInformation' },
         { method: 'GET', path: '/reports/daily-summary' },
         { method: 'GET', path: '/reports/low-stock' },
         { method: 'GET', path: '/reports/date-range' },

@@ -34,13 +34,15 @@ vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
         _id: id,
         stockDirection: id === '507f1f77bcf86cd799439015' ? -1 : 1
       })
-    )
+    ),
+    find: vi.fn()
   }
 }))
 
 vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
   default: {
-    findById: vi.fn()
+    findById: vi.fn(),
+    find: vi.fn()
   }
 }))
 
@@ -66,6 +68,7 @@ vi.mock('../src/modules/inventory-records/inventory-records.model.js', () => {
 
   InventoryRecordMock.findById = vi.fn()
   InventoryRecordMock.find = vi.fn()
+  InventoryRecordMock.aggregate = vi.fn()
 
   return { default: InventoryRecordMock }
 })
@@ -75,9 +78,12 @@ import jwt from 'jsonwebtoken'
 import Product from '../src/modules/products/products.model.js'
 import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
 import DailyInformation from '../src/modules/daily-information/daily-information.model.js'
+import TypeInventory from '../src/modules/type-inventory/type-inventory.model.js'
+import PaymentType from '../src/modules/payment-types/payment-types.model.js'
 import UserModel from '../src/modules/users/users.model.js'
 import {
   createInventoryRecord,
+  getLiveInformation,
   getDailySalesSummary,
   getLowStockProducts,
   getInventoryStats
@@ -318,6 +324,58 @@ describe('Business logic tests', () => {
     )
     expect(DailyInformation.findOne).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(201)
+  })
+
+  it('sums issue records for the date sent by the client', async () => {
+    const res = mockRes()
+    const cashId = '507f1f77bcf86cd799439021'
+    const cardId = '507f1f77bcf86cd799439022'
+    TypeInventory.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([{ _id: ISSUE_TYPE_ID }])
+      })
+    })
+    InventoryRecordModel.aggregate.mockResolvedValue([
+      { _id: cashId, total: 150.5 },
+      { _id: cardId, total: 49.5 },
+      { _id: '507f1f77bcf86cd799439023', total: 10 }
+    ])
+    PaymentType.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { _id: cashId, paymentType: 'Efectivo' },
+          { _id: cardId, paymentType: 'Tarjeta' },
+          { _id: '507f1f77bcf86cd799439023', paymentType: 'Transferencia' }
+        ])
+      })
+    })
+
+    await getLiveInformation({ query: { date: '2026-10-23' } }, res)
+
+    expect(InventoryRecordModel.aggregate).toHaveBeenCalledWith([
+      {
+        $match: {
+          date: '2026-10-23',
+          typeInventory: { $in: [ISSUE_TYPE_ID] }
+        }
+      },
+      { $group: { _id: '$paymentType', total: { $sum: '$totalAmount' } } }
+    ])
+    expect(res.status).toHaveBeenCalledWith(200)
+    expect(res.json).toHaveBeenCalledWith({
+      date: '2026-10-23',
+      cashSales: 150.5,
+      cardSales: 49.5,
+      totalSales: 200
+    })
+  })
+
+  it('rejects live information without a client date', async () => {
+    const res = mockRes()
+    InventoryRecordModel.aggregate.mockClear()
+    await getLiveInformation({ query: {} }, res)
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(InventoryRecordModel.aggregate).not.toHaveBeenCalled()
   })
 
   it('summarizes only ISSUE records as daily sales', async () => {

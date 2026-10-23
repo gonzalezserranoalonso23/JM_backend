@@ -6,6 +6,7 @@ import {
   createInventoryRecords,
   updateInventoryRecord,
   deleteInventoryRecord,
+  getLiveInformation,
   getDailySalesSummary,
   getLowStockProducts,
   getSalesByDateRange,
@@ -17,6 +18,7 @@ import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 const router = Router()
 
 router.get('/', verifyToken, getInventoryRecords)
+router.get('/liveInformation', verifyToken, getLiveInformation)
 router.get('/reports/daily-summary', verifyToken, getDailySalesSummary)
 router.get('/reports/low-stock', verifyToken, getLowStockProducts)
 router.get('/reports/date-range', verifyToken, getSalesByDateRange)

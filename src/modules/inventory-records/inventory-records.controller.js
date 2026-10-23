@@ -4,6 +4,7 @@
  * Base: /api/inventory-records (requiere token)
  *
  * GET    /                       -> getInventoryRecords      query: page, limit, search (producto o fecha), type, direction (1 entradas | -1 salidas), paymentType
+ * GET    /liveInformation       -> getLiveInformation       query: date (YYYY-MM-DD, la manda el frontend)
  * GET    /reports/daily-summary  -> getDailySalesSummary     query: date (YYYY-MM-DD)
  * GET    /reports/low-stock      -> getLowStockProducts      query: page, limit, search, category
  * GET    /reports/date-range     -> getSalesByDateRange      query: startDate, endDate, page, limit, paymentType, type (_id)
@@ -28,7 +29,7 @@ import {
   SUPPLIER_FIELDS,
   TYPE_INVENTORY_FIELDS
 } from '../../utils/projections.js'
-import { lineTotal } from '../../utils/money.js'
+import { lineTotal, roundMoney } from '../../utils/money.js'
 import {
   createPaginatedResponse,
   escapeRegex,
@@ -551,6 +552,76 @@ const deleteInventoryRecord = async (req, res) => {
 
 // REPORTES Y ANÁLISIS
 
+const DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/
+
+const paymentBucket = (name) => {
+  const label = String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+  if (label.includes('efectivo')) return 'cash'
+  if (label.includes('tarjeta')) return 'card'
+  return ''
+}
+
+// Suma las salidas del día. La fecha llega del frontend; no se usa la del servidor.
+const getLiveInformation = async (req, res) => {
+  const date = String(req.query.date || '').trim()
+  if (!DATE_PARAM.test(date)) {
+    return res
+      .status(400)
+      .json({ message: 'La fecha es requerida con formato YYYY-MM-DD' })
+  }
+
+  try {
+    const issueTypes = await TypeInventory.find({ stockDirection: -1 })
+      .select('_id')
+      .lean()
+    const issueIds = issueTypes.map((type) => type._id)
+
+    const grouped = issueIds.length
+      ? await InventoryRecord.aggregate([
+          { $match: { date, typeInventory: { $in: issueIds } } },
+          { $group: { _id: '$paymentType', total: { $sum: '$totalAmount' } } }
+        ])
+      : []
+
+    const paymentIds = grouped.map((row) => row._id).filter(Boolean)
+    const payments = paymentIds.length
+      ? await PaymentType.find({ _id: { $in: paymentIds } })
+          .select('paymentType')
+          .lean()
+      : []
+    const names = new Map(
+      payments.map((payment) => [String(payment._id), payment.paymentType])
+    )
+
+    let cashSales = 0
+    let cardSales = 0
+    for (const row of grouped) {
+      const amount = Number(row.total) || 0
+      const bucket = paymentBucket(names.get(String(row._id)))
+      if (bucket === 'cash') cashSales += amount
+      if (bucket === 'card') cardSales += amount
+    }
+
+    cashSales = roundMoney(cashSales)
+    cardSales = roundMoney(cardSales)
+
+    return res.status(200).json({
+      date,
+      cashSales,
+      cardSales,
+      totalSales: roundMoney(cashSales + cardSales)
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Error al obtener las ventas del día',
+      error: error.message
+    })
+  }
+}
+
 const getDailySalesSummary = async (req, res) => {
   try {
     const { date } = req.query // Formato: YYYY-MM-DD
@@ -838,6 +909,7 @@ export {
   createInventoryRecords,
   updateInventoryRecord,
   deleteInventoryRecord,
+  getLiveInformation,
   getDailySalesSummary,
   getLowStockProducts,
   getSalesByDateRange,
