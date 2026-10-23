@@ -1,6 +1,6 @@
 /**
  * Tareas internas asignables a usuarios. Base: /api/tasks (requiere token)
- * Todas las respuestas incluyen createdBy/assignedTo/completedBy (username, email, fullName).
+ * Todas las respuestas incluyen createdBy/assignedTo/completedBy (username, fullName).
  *
  * GET    /           -> getTasks           todas, más recientes primero
  * GET    /pending    -> getPendingTasks
@@ -15,6 +15,24 @@ import { USER_FIELDS } from '../../utils/projections.js'
 import Task from './tasks.model.js'
 import User from '../users/users.model.js'
 import { isValidObjectId } from 'mongoose'
+import { sendPushToUser } from '../push-notifications/push.service.js'
+
+const asId = (value) => {
+  if (!value) return ''
+  if (typeof value === 'object') return String(value._id || value)
+  return String(value)
+}
+
+const notifyAssignee = (userId, task) => {
+  const assigneeId = asId(userId)
+  if (!assigneeId || !task) return
+  void sendPushToUser(assigneeId, {
+    title: 'Pendiente asignado',
+    body: task.title || 'Tienes una tarea pendiente',
+    url: '/todolist',
+    tag: String(task._id || 'task')
+  }).catch(() => {})
+}
 
 const withUsers = (query) =>
   query
@@ -88,6 +106,7 @@ export const createTask = async (req, res) => {
       { path: 'assignedTo', select: USER_FIELDS }
     ])
 
+    notifyAssignee(assignee, populatedTask)
     res.status(201).json(populatedTask)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -109,6 +128,9 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ message: 'Tarea no encontrada' })
     }
 
+    const previousAssigneeId = asId(task.assignedTo)
+    let nextAssigneeId = previousAssigneeId
+
     if (title) task.title = title
     if (description !== undefined) task.description = description
     if (priority) task.priority = priority
@@ -119,6 +141,7 @@ export const updateTask = async (req, res) => {
         return res.status(400).json({ message: 'Usuario asignado inválido' })
       }
       task.assignedTo = assignee
+      nextAssigneeId = asId(assignee)
     }
 
     if (status && status !== task.status) {
@@ -135,6 +158,9 @@ export const updateTask = async (req, res) => {
     await task.save()
 
     const updatedTask = await withUsers(Task.findById(id)).lean()
+    if (nextAssigneeId && nextAssigneeId !== previousAssigneeId) {
+      notifyAssignee(nextAssigneeId, updatedTask)
+    }
 
     res.status(200).json(updatedTask)
   } catch (error) {

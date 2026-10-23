@@ -21,13 +21,14 @@ import {
   escapeRegex,
   getPagination
 } from '../../utils/pagination.js'
+import { USER_FIELDS } from '../../utils/projections.js'
 dotenv.config()
 
 const TOKEN_TTL = process.env.TOKEN_TTL || '7d'
 
 const getAssignableUsers = async (req, res) => {
   try {
-    const users = await UserModel.find({}, 'username fullName')
+    const users = await UserModel.find({}, USER_FIELDS)
       .sort({ username: 1 })
       .lean()
     res.status(200).json(users)

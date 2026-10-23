@@ -7,17 +7,17 @@ import helmet from 'helmet'
 
 const app = express()
 
-// Routes
-import userRouter from './modules/users/users.routes.js'
-import CategoriesRouter from './modules/categories/categories.routes.js'
-import SuppliersRouter from './modules/suppliers/suppliers.routes.js'
-import ProductsRouter from './modules/products/products.routes.js'
-import typeInventory from './modules/type-inventory/type-inventory.routes.js'
-import paymentType from './modules/payment-types/payment-types.routes.js'
-import InventoryRecordsRouter from './modules/inventory-records/inventory-records.routes.js'
-import DailyInformationRouter from './modules/daily-information/daily-information.routes.js'
-import OrdersRouter from './modules/orders/orders.routes.js'
-import TasksRouter from './modules/tasks/tasks.routes.js'
+import usersRouter from './modules/users/users.routes.js'
+import categoriesRouter from './modules/categories/categories.routes.js'
+import suppliersRouter from './modules/suppliers/suppliers.routes.js'
+import productsRouter from './modules/products/products.routes.js'
+import typeInventoryRouter from './modules/type-inventory/type-inventory.routes.js'
+import paymentTypesRouter from './modules/payment-types/payment-types.routes.js'
+import inventoryRecordsRouter from './modules/inventory-records/inventory-records.routes.js'
+import dailyInformationRouter from './modules/daily-information/daily-information.routes.js'
+import ordersRouter from './modules/orders/orders.routes.js'
+import tasksRouter from './modules/tasks/tasks.routes.js'
+import pushNotificationsRouter from './modules/push-notifications/push-notifications.routes.js'
 
 dotenv.config()
 app.use(morgan('tiny'))
@@ -47,15 +47,16 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }))
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Bienvenido a la API de MiscelaniaJM' })
 })
-app.use('/api/users', userRouter)
-app.use('/api/type-inventory', typeInventory)
-app.use('/api/payment-types', paymentType)
-app.use('/api/categories', CategoriesRouter)
-app.use('/api/suppliers', SuppliersRouter)
-app.use('/api/products', ProductsRouter)
-app.use('/api/inventory-records', InventoryRecordsRouter)
-app.use('/api/daily-information', DailyInformationRouter)
-app.use('/api/orders', OrdersRouter)
-app.use('/api/tasks', TasksRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/type-inventory', typeInventoryRouter)
+app.use('/api/payment-types', paymentTypesRouter)
+app.use('/api/categories', categoriesRouter)
+app.use('/api/suppliers', suppliersRouter)
+app.use('/api/products', productsRouter)
+app.use('/api/inventory-records', inventoryRecordsRouter)
+app.use('/api/daily-information', dailyInformationRouter)
+app.use('/api/orders', ordersRouter)
+app.use('/api/tasks', tasksRouter)
+app.use('/api/push', pushNotificationsRouter)
 
 export default app

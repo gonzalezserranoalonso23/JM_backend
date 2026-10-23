@@ -70,6 +70,8 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
       static findAuthState = vi
         .fn()
         .mockResolvedValue({ tokenVersion: 0, isAdmin: true })
+
+      static deleteMany = vi.fn().mockResolvedValue({ deletedCount: 1 })
     }
 
     return MockModel
@@ -111,6 +113,9 @@ vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
   default: makeModel()
 }))
 vi.mock('../src/modules/users/users.model.js', () => ({ default: makeModel() }))
+vi.mock('../src/modules/push-notifications/push-notifications.model.js', () => ({
+  default: makeModel()
+}))
 
 import CategoriesRouter from '../src/modules/categories/categories.routes.js'
 import DailyInformationRouter from '../src/modules/daily-information/daily-information.routes.js'
@@ -121,6 +126,7 @@ import SuppliersRouter from '../src/modules/suppliers/suppliers.routes.js'
 import TasksRouter from '../src/modules/tasks/tasks.routes.js'
 import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.routes.js'
 import UsersRouter from '../src/modules/users/users.routes.js'
+import PushNotificationsRouter from '../src/modules/push-notifications/push-notifications.routes.js'
 import CategoriesModel from '../src/modules/categories/categories.model.js'
 import DailyInformationModel from '../src/modules/daily-information/daily-information.model.js'
 import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
@@ -140,7 +146,8 @@ const routers = [
   ['/api/products', ProductsRouter],
   ['/api/suppliers', SuppliersRouter],
   ['/api/tasks', TasksRouter],
-  ['/api/type-inventory', TypeInventoryRouter]
+  ['/api/type-inventory', TypeInventoryRouter],
+  ['/api/push', PushNotificationsRouter]
 ]
 
 const app = express()
@@ -259,7 +266,9 @@ const requestBody = (endpoint) => {
     username: 'test-user',
     password: 'test-password',
     email: 'test@example.com',
-    fullName: 'Usuario de prueba'
+    fullName: 'Usuario de prueba',
+    endpoint: 'https://push.example/subscription',
+    keys: { p256dh: 'p256dh-key', auth: 'auth-key' }
   }
 
   if (endpoint.url === '/api/users/login') {
@@ -291,6 +300,8 @@ describe('HTTP endpoint coverage', () => {
 
   beforeAll(() => {
     process.env.SECURITY_JM = 'endpoint-test-secret'
+    process.env.VAPID_PUBLIC_KEY = 'test-public-key'
+    process.env.VAPID_PRIVATE_KEY = 'test-private-key'
     token = jwt.sign(
       { id: TEST_ID, username: 'test-user', isAdmin: true },
       process.env.SECURITY_JM

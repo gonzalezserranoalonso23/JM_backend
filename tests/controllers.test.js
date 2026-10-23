@@ -82,6 +82,10 @@ vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
   })
 }))
 
+vi.mock('../src/modules/push-notifications/push.service.js', () => ({
+  sendPushToUser: vi.fn().mockResolvedValue(undefined)
+}))
+
 vi.mock('../src/modules/tasks/tasks.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
@@ -96,7 +100,8 @@ vi.mock('../src/modules/users/users.model.js', () => ({
     findOne: vi.fn(),
     findById: vi.fn(),
     findOneAndUpdate: vi.fn(),
-    deleteOne: vi.fn()
+    deleteOne: vi.fn(),
+    exists: vi.fn()
   })
 }))
 
@@ -121,6 +126,7 @@ import {
 } from '../src/modules/products/products.controller.js'
 import { getSuppliers } from '../src/modules/suppliers/suppliers.controller.js'
 import { createTask, getTasks } from '../src/modules/tasks/tasks.controller.js'
+import { sendPushToUser } from '../src/modules/push-notifications/push.service.js'
 import {
   createTypeInventory,
   getTypeInventories
@@ -323,6 +329,40 @@ describe('Controller smoke tests', () => {
     )
 
     expect(saveSpy).toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(201)
+    expect(sendPushToUser).not.toHaveBeenCalled()
+  })
+
+  it('notifies only the assigned user when a pending task is created', async () => {
+    const res = mockRes()
+    const assigneeId = '507f1f77bcf86cd799439011'
+    UsersModel.exists.mockResolvedValue({ _id: assigneeId })
+    TaskModel.prototype.save = vi.fn().mockResolvedValue({ _id: 't-2' })
+    TaskModel.prototype.populate = vi.fn().mockResolvedValue({
+      _id: 't-2',
+      title: 'Reponer leche',
+      assignedTo: { _id: assigneeId }
+    })
+
+    await createTask(
+      {
+        body: {
+          title: 'Reponer leche',
+          assignedTo: assigneeId
+        },
+        user: { id: 'u-admin' }
+      },
+      res
+    )
+
+    expect(sendPushToUser).toHaveBeenCalledWith(
+      assigneeId,
+      expect.objectContaining({
+        title: 'Pendiente asignado',
+        body: 'Reponer leche',
+        url: '/todolist'
+      })
+    )
     expect(res.status).toHaveBeenCalledWith(201)
   })
 

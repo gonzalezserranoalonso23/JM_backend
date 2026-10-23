@@ -10,6 +10,7 @@ import SuppliersRouter from '../src/modules/suppliers/suppliers.routes.js'
 import TasksRouter from '../src/modules/tasks/tasks.routes.js'
 import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.routes.js'
 import UsersRouter from '../src/modules/users/users.routes.js'
+import PushNotificationsRouter from '../src/modules/push-notifications/push-notifications.routes.js'
 
 const getRoutes = (router) =>
   router.stack
@@ -130,6 +131,16 @@ describe('Route registration smoke tests', () => {
         { method: 'POST', path: '/' },
         { method: 'PUT', path: '/:id' },
         { method: 'DELETE', path: '/:id' }
+      ])
+    )
+  })
+
+  it('declares all push notification routes', () => {
+    expect(getRoutes(PushNotificationsRouter)).toEqual(
+      expect.arrayContaining([
+        { method: 'GET', path: '/vapid-public-key' },
+        { method: 'POST', path: '/subscribe' },
+        { method: 'DELETE', path: '/subscribe' }
       ])
     )
   })
