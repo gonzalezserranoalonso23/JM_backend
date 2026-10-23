@@ -235,8 +235,14 @@ describe('Business logic tests', () => {
     expect(InventoryRecordModel.instances[0].save).toHaveBeenCalled()
     expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: '507f1f77bcf86cd799439011' },
-      { $inc: { productStock: 7 } },
-      { returnDocument: 'after' }
+      [
+        {
+          $set: {
+            productStock: { $round: [{ $add: ['$productStock', 7] }, 3] }
+          }
+        }
+      ],
+      { returnDocument: 'after', updatePipeline: true }
     )
     expect(res.status).toHaveBeenCalledWith(201)
     expect(res.json).toHaveBeenCalledWith(
@@ -301,8 +307,14 @@ describe('Business logic tests', () => {
     expect(InventoryRecordModel.instances[0].save).toHaveBeenCalled()
     expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: '507f1f77bcf86cd799439011', productStock: { $gte: 3 } },
-      { $inc: { productStock: -3 } },
-      { returnDocument: 'after' }
+      [
+        {
+          $set: {
+            productStock: { $round: [{ $add: ['$productStock', -3] }, 3] }
+          }
+        }
+      ],
+      { returnDocument: 'after', updatePipeline: true }
     )
     expect(DailyInformation.findOne).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(201)

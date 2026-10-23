@@ -80,8 +80,15 @@ const adjustStock = (productId, delta, { force = false } = {}) => {
   if (delta < 0 && !force) filter.productStock = { $gte: -delta }
   return Product.findOneAndUpdate(
     filter,
-    { $inc: { productStock: delta } },
-    { returnDocument: 'after' }
+    // $inc acumulaba error de punto flotante (0.1 + 0.2); se redondea a 3 decimales
+    [
+      {
+        $set: {
+          productStock: { $round: [{ $add: ['$productStock', delta] }, 3] }
+        }
+      }
+    ],
+    { returnDocument: 'after', updatePipeline: true }
   )
 }
 
