@@ -240,19 +240,23 @@ const getInventoryRecord = (req, res) => {
 }
 // Crea un único movimiento de inventario y actualiza el stock del producto.
 // Lanza un error con `.status` para que el caller (single o bulk) responda igual.
+const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
+
 const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
-  const { date, typeInventory, productName, category } = payload
+  const { typeInventory, productName } = payload
+  const clientDate = String(payload.date || '').trim()
+  if (!CLIENT_DATE.test(clientDate)) {
+    const error = new Error('La fecha es requerida con formato YYYY-MM-DD')
+    error.status = 400
+    throw error
+  }
+
   const [inventoryType, paymentType] = await Promise.all([
     getInventoryType(typeInventory),
     getPaymentType(payload.paymentType)
   ])
 
-  // Los campos numéricos pueden llegar como string desde el formulario;
-  // sin castear, `productStock + quantity` concatenaba strings en vez de sumar.
-  const productPrice = payload.productPrice
   const quantity = Number(payload.quantity)
-  // El total lo calcula el servidor; el enviado solo se usa si no se puede calcular
-  const totalAmount = lineTotal(quantity, productPrice) ?? Number(payload.totalAmount)
 
   if (!isValidObjectId(productName)) {
     const error = new Error('ID de producto inválido')
@@ -260,20 +264,8 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
     throw error
   }
 
-  if (!category || !isValidObjectId(category)) {
-    const error = new Error('Categoría inválida o no seleccionada')
-    error.status = 400
-    throw error
-  }
-
   if (!Number.isFinite(quantity) || quantity <= 0) {
     const error = new Error('Cantidad inválida')
-    error.status = 400
-    throw error
-  }
-
-  if (!Number.isFinite(totalAmount)) {
-    const error = new Error('Total inválido')
     error.status = 400
     throw error
   }
@@ -286,6 +278,21 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   }
 
   const isExit = isIssueType(inventoryType)
+  const categoryId = product.category?._id || product.category
+  const unitPrice = Number(isExit ? product.productPrice : product.purchasePrice)
+  const totalAmount = lineTotal(quantity, unitPrice)
+
+  if (!categoryId || !isValidObjectId(categoryId)) {
+    const error = new Error('El producto no tiene una categoría válida')
+    error.status = 400
+    throw error
+  }
+
+  if (!Number.isFinite(unitPrice) || totalAmount === null) {
+    const error = new Error('El producto no tiene un precio válido')
+    error.status = 400
+    throw error
+  }
 
   if (isExit && product.productStock < quantity) {
     throw insufficientStockError(product.productStock, quantity)
@@ -306,11 +313,11 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   let savedRecord
   try {
     savedRecord = await new InventoryRecord({
-      date,
+      date: clientDate,
       typeInventory: inventoryType._id,
       productName,
-      category,
-      productPrice,
+      category: categoryId,
+      productPrice: String(unitPrice),
       quantity,
       totalAmount,
       paymentType: paymentType?._id ?? null,
@@ -623,10 +630,15 @@ const getLiveInformation = async (req, res) => {
 }
 
 const getDailySalesSummary = async (req, res) => {
-  try {
-    const { date } = req.query // Formato: YYYY-MM-DD
+  const date = String(req.query.date || '').trim()
+  if (!DATE_PARAM.test(date)) {
+    return res
+      .status(400)
+      .json({ message: 'La fecha es requerida con formato YYYY-MM-DD' })
+  }
 
-    const query = date ? { date: { $regex: date } } : {}
+  try {
+    const query = { date }
 
     const records = await InventoryRecord.find(query)
       .populate('typeInventory', TYPE_INVENTORY_FIELDS)
@@ -645,7 +657,7 @@ const getDailySalesSummary = async (req, res) => {
     const productsSold = exits.length
 
     res.status(200).json({
-      date: date || new Date().toISOString().split('T')[0],
+      date,
       totalSales,
       totalTransactions,
       productsSold,

@@ -9,7 +9,7 @@
  * POST   /           -> createTask         body: { title*, description, priority = 'medium', assignedTo } (createdBy = token)
  * PUT    /:id        -> updateTask         params: id | body: { title, description, priority, status, assignedTo }
  *                                          status 'completed' registra completedBy/completedAt; 'pending' los limpia
- * DELETE /:id        -> deleteTask         params: id (solo admin)
+ * DELETE /:id        -> deleteTask         params: id (admin, o quien la creó o tiene asignada)
  */
 import { USER_FIELDS } from '../../utils/projections.js'
 import Task from './tasks.model.js'
@@ -21,6 +21,13 @@ const asId = (value) => {
   if (!value) return ''
   if (typeof value === 'object') return String(value._id || value)
   return String(value)
+}
+
+const canManageTask = (task, req) => {
+  if (req.isAdmin) return true
+  const userId = asId(req.userId || req.user?.id)
+  if (!userId) return false
+  return asId(task.createdBy) === userId || asId(task.assignedTo) === userId
 }
 
 const notifyAssignee = (userId, task) => {
@@ -128,6 +135,12 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ message: 'Tarea no encontrada' })
     }
 
+    if (!canManageTask(task, req)) {
+      return res
+        .status(403)
+        .json({ message: 'Solo puedes modificar un pendiente si es tuyo' })
+    }
+
     const previousAssigneeId = asId(task.assignedTo)
     let nextAssigneeId = previousAssigneeId
 
@@ -176,11 +189,19 @@ export const deleteTask = async (req, res) => {
       return res.status(400).json({ message: 'ID inválido' })
     }
 
-    const task = await Task.findByIdAndDelete(id)
+    const task = await Task.findById(id)
 
     if (!task) {
       return res.status(404).json({ message: 'Tarea no encontrada' })
     }
+
+    if (!canManageTask(task, req)) {
+      return res
+        .status(403)
+        .json({ message: 'Solo puedes eliminar un pendiente si es tuyo' })
+    }
+
+    await Task.findByIdAndDelete(id)
 
     res.status(200).json({ message: 'Tarea eliminada exitosamente' })
   } catch (error) {

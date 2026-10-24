@@ -207,6 +207,65 @@ describe('Integración con MongoDB real', () => {
     expect((await api('delete', `/api/tasks/${id}`)).status).toBe(200)
   })
 
+  it('un usuario modifica y elimina solo sus pendientes', async () => {
+    const regular = await mongoose.model('User').create({
+      username: 'cajero',
+      password: 'x',
+      email: 'cajero@jm.test',
+      isAdmin: false
+    })
+    const regularAuth = jwt.sign(
+      { id: String(regular._id), username: 'cajero', isAdmin: false, tv: 0 },
+      process.env.SECURITY_JM
+    )
+    const asRegular = (method, url) =>
+      request(app)
+        [method](url)
+        .set('Authorization', `Bearer ${regularAuth}`)
+
+    const own = await asRegular('post', '/api/tasks').send({
+      title: 'Mi pendiente'
+    })
+    expect(own.status, JSON.stringify(own.body)).toBe(201)
+
+    const completed = await asRegular('put', `/api/tasks/${own.body._id}`).send(
+      { status: 'completed' }
+    )
+    expect(completed.status).toBe(200)
+    expect((await asRegular('delete', `/api/tasks/${own.body._id}`)).status).toBe(
+      200
+    )
+
+    const assigned = await api('post', '/api/tasks').send({
+      title: 'Asignada al cajero',
+      assignedTo: String(regular._id)
+    })
+    expect(
+      (
+        await asRegular('put', `/api/tasks/${assigned.body._id}`).send({
+          title: 'Asignada y editada'
+        })
+      ).status
+    ).toBe(200)
+    expect(
+      (await asRegular('delete', `/api/tasks/${assigned.body._id}`)).status
+    ).toBe(200)
+
+    const foreign = await api('post', '/api/tasks').send({
+      title: 'Pendiente del admin'
+    })
+    expect(
+      (
+        await asRegular('put', `/api/tasks/${foreign.body._id}`).send({
+          status: 'completed'
+        })
+      ).status
+    ).toBe(403)
+    expect(
+      (await asRegular('delete', `/api/tasks/${foreign.body._id}`)).status
+    ).toBe(403)
+  })
+
   it('asigna tareas a otros usuarios', async () => {
     const users = await api('get', '/api/users/assignable')
     expect(users.status).toBe(200)
@@ -607,6 +666,55 @@ describe('Integración con MongoDB real', () => {
     expect(await stockOf(agua)).toBe(1)
   })
 
+  it('abre la caja fuerte con el secreto y guarda las denominaciones', async () => {
+    process.env.CASH_VAULT_SECRET = 'vault-secret'
+    const quantities = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5].map(
+      (value) => ({ value, quantity: value === 100 ? 3 : value === 0.5 ? 4 : 0 })
+    )
+
+    const denied = await api('post', '/api/denominations/open').send({
+      secret: 'otra-clave'
+    })
+    expect(denied.status).toBe(403)
+
+    const opened = await api('post', '/api/denominations/open').send({
+      secret: 'vault-secret'
+    })
+    expect(opened.status, JSON.stringify(opened.body)).toBe(200)
+    expect(opened.body.denominations).toHaveLength(11)
+    expect(opened.body.total).toBe(0)
+
+    const saved = await api('put', '/api/denominations').send({
+      secret: 'vault-secret',
+      quantities
+    })
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200)
+    expect(saved.body.denominations.find((row) => row.value === 100).quantity).toBe(
+      3
+    )
+    expect(saved.body.denominations.find((row) => row.value === 0.5).amount).toBe(2)
+    expect(saved.body.total).toBe(302)
+    expect(saved.body.updatedAt).toBeTruthy()
+
+    const latest = await api('get', '/api/denominations')
+    expect(latest.status).toBe(200)
+    expect(latest.body.updatedAt).toBeTruthy()
+    expect(latest.body.denominations).toBeUndefined()
+
+    const invalid = await api('put', '/api/denominations').send({
+      secret: 'vault-secret',
+      quantities: [{ value: 3, quantity: 1 }]
+    })
+    expect(invalid.status).toBe(400)
+
+    delete process.env.CASH_VAULT_SECRET
+    const unconfigured = await api('post', '/api/denominations/open').send({
+      secret: 'vault-secret'
+    })
+    expect(unconfigured.status).toBe(503)
+    expect((await request(app).post('/api/denominations/open')).status).toBe(401)
+  })
+
   it('valida IDs inválidos y campos requeridos', async () => {
     for (const base of [
       '/api/products',
@@ -659,10 +767,15 @@ describe('Autenticación y roles', () => {
   it('user puede leer y crear pero no borrar ni gestionar usuarios', async () => {
     const t = userToken()
     expect((await as(t, 'get', '/api/products')).status).toBe(200)
-    const created = await as(t, 'post', '/api/categories').send({
+    expect(
+      (await as(t, 'post', '/api/categories').send({ categories: 'Roles' })).status
+    ).toBe(403)
+    const created = await api('post', '/api/categories').send({
       categories: 'Roles'
     })
     expect(created.status).toBe(201)
+    const task = await as(t, 'post', '/api/tasks').send({ title: 'Pendiente propio' })
+    expect(task.status).toBe(201)
     expect(
       (await as(t, 'delete', `/api/categories/${created.body._id}`)).status
     ).toBe(403)

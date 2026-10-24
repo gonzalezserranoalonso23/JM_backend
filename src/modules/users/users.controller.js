@@ -133,6 +133,12 @@ const loginUser = async (req, res) => {
   }
 }
 
+const asAdminFlag = (value) => {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
 const registerUser = async (req, res) => {
   const { username, password, email, fullName, isAdmin } = req.body
   if (!username || !password || !email)
@@ -154,7 +160,7 @@ const registerUser = async (req, res) => {
       password: passCrypt,
       email,
       fullName,
-      isAdmin: isAdmin === true
+      isAdmin: asAdminFlag(isAdmin) === true
     })
     const saved = await newUser.save()
     res.status(201).json({ username: saved.username })
@@ -177,7 +183,7 @@ const updateUser = async (req, res) => {
         username,
         email,
         fullName,
-        isAdmin: isAdmin === undefined ? undefined : isAdmin === true
+        isAdmin: asAdminFlag(isAdmin)
       }).filter(([, value]) => value !== undefined)
     )
     const revokeSessions = Boolean(password) || update.isAdmin !== undefined

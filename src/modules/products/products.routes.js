@@ -12,8 +12,8 @@ const router = Router()
 
 router.get('/', verifyToken, getProducts)
 router.get('/:id', verifyToken, getProduct)
-router.post('/', verifyToken, createProduct)
-router.put('/:id', verifyToken, updateProduct)
+router.post('/', verifyToken, requireAdmin, createProduct)
+router.put('/:id', verifyToken, requireAdmin, updateProduct)
 router.delete('/:id', verifyToken, requireAdmin, deleteProduct)
 
 export default router

@@ -12,8 +12,8 @@ const router = Router()
 
 router.get('/', verifyToken, getCategories)
 router.get('/:id', verifyToken, getCategory)
-router.post('/', verifyToken, createCategory)
-router.put('/:id', verifyToken, updateCategory)
+router.post('/', verifyToken, requireAdmin, createCategory)
+router.put('/:id', verifyToken, requireAdmin, updateCategory)
 router.delete('/:id', verifyToken, requireAdmin, deleteCategory)
 
 export default router

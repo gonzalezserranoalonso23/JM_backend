@@ -162,7 +162,8 @@ describe('Business logic tests', () => {
     Product.findById.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
       productStock: 2,
-      productPrice: 25
+      productPrice: 25,
+      category: '507f1f77bcf86cd799439012'
     })
 
     await createInventoryRecord(
@@ -211,7 +212,9 @@ describe('Business logic tests', () => {
     Product.findById.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
       productStock: 10,
-      productPrice: 18
+      purchasePrice: 18,
+      productPrice: 18,
+      category: '507f1f77bcf86cd799439012'
     })
     Product.findOneAndUpdate.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
@@ -283,7 +286,8 @@ describe('Business logic tests', () => {
     Product.findById.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
       productStock: 12,
-      productPrice: 25
+      productPrice: 25,
+      category: '507f1f77bcf86cd799439012'
     })
     Product.findOneAndUpdate.mockResolvedValue({
       _id: '507f1f77bcf86cd799439011',
@@ -391,7 +395,7 @@ describe('Business logic tests', () => {
     await getDailySalesSummary({ query: { date: '2026-09-03' } }, res)
 
     expect(InventoryRecordModel.find).toHaveBeenCalledWith({
-      date: { $regex: '2026-09-03' }
+      date: '2026-09-03'
     })
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith(

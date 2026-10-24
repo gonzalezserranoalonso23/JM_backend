@@ -11,6 +11,7 @@ import TasksRouter from '../src/modules/tasks/tasks.routes.js'
 import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.routes.js'
 import UsersRouter from '../src/modules/users/users.routes.js'
 import PushNotificationsRouter from '../src/modules/push-notifications/push-notifications.routes.js'
+import DenominationsRouter from '../src/modules/denominations/denominations.routes.js'
 
 const getRoutes = (router) =>
   router.stack
@@ -142,6 +143,16 @@ describe('Route registration smoke tests', () => {
         { method: 'GET', path: '/vapid-public-key' },
         { method: 'POST', path: '/subscribe' },
         { method: 'DELETE', path: '/subscribe' }
+      ])
+    )
+  })
+
+  it('declares all denomination routes', () => {
+    expect(getRoutes(DenominationsRouter)).toEqual(
+      expect.arrayContaining([
+        { method: 'GET', path: '/' },
+        { method: 'POST', path: '/open' },
+        { method: 'PUT', path: '/' }
       ])
     )
   })

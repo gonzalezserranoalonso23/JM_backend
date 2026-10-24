@@ -12,8 +12,8 @@ const router = Router()
 
 router.get('/', verifyToken, getSuppliers)
 router.get('/:id', verifyToken, getSupplier)
-router.post('/', verifyToken, createSupplier)
-router.put('/:id', verifyToken, updateSupplier)
+router.post('/', verifyToken, requireAdmin, createSupplier)
+router.put('/:id', verifyToken, requireAdmin, updateSupplier)
 router.delete('/:id', verifyToken, requireAdmin, deleteSupplier)
 
 export default router

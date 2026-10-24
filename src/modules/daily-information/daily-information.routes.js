@@ -12,8 +12,8 @@ const router = Router()
 
 router.get('/', verifyToken, getDailyInformations)
 router.get('/:id', verifyToken, getDailyInformation)
-router.post('/', verifyToken, createDailyInformation)
-router.put('/:id', verifyToken, updateDailyInformation)
+router.post('/', verifyToken, requireAdmin, createDailyInformation)
+router.put('/:id', verifyToken, requireAdmin, updateDailyInformation)
 router.delete('/:id', verifyToken, requireAdmin, deleteDailyInformation)
 
 export default router

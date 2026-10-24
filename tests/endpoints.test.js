@@ -12,6 +12,8 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
     _id: id,
     productStock: 10,
     productPrice: 20,
+    purchasePrice: 15,
+    category: id,
     minimumProductStock: 2,
     stockDirection: 1,
     typeInventory: id,
@@ -333,6 +335,12 @@ describe('HTTP endpoint coverage', () => {
         endpointRequest = endpointRequest.send(requestBody(endpoint))
       }
 
+      if (endpoint.url.endsWith('/liveInformation')) {
+        endpointRequest = endpointRequest.query({ date: '2026-10-05' })
+      }
+      if (endpoint.url.endsWith('/reports/daily-summary')) {
+        endpointRequest = endpointRequest.query({ date: '2026-10-05' })
+      }
       if (endpoint.url.endsWith('/reports/date-range')) {
         endpointRequest = endpointRequest.query({
           startDate: '2026-10-01',

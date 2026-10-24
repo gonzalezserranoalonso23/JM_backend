@@ -8,7 +8,7 @@ import {
   getPendingTasks,
   getCompletedTasks
 } from './tasks.controller.js'
-import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
+import verifyToken from '../../middlewares/verifyToken.js'
 
 const router = express.Router()
 
@@ -18,6 +18,6 @@ router.get('/completed', verifyToken, getCompletedTasks)
 router.get('/:id', verifyToken, getTask)
 router.post('/', verifyToken, createTask)
 router.put('/:id', verifyToken, updateTask)
-router.delete('/:id', verifyToken, requireAdmin, deleteTask)
+router.delete('/:id', verifyToken, deleteTask)
 
 export default router

@@ -18,6 +18,7 @@ import dailyInformationRouter from './modules/daily-information/daily-informatio
 import ordersRouter from './modules/orders/orders.routes.js'
 import tasksRouter from './modules/tasks/tasks.routes.js'
 import pushNotificationsRouter from './modules/push-notifications/push-notifications.routes.js'
+import denominationsRouter from './modules/denominations/denominations.routes.js'
 
 dotenv.config()
 app.use(morgan('tiny'))
@@ -58,5 +59,6 @@ app.use('/api/daily-information', dailyInformationRouter)
 app.use('/api/orders', ordersRouter)
 app.use('/api/tasks', tasksRouter)
 app.use('/api/push', pushNotificationsRouter)
+app.use('/api/denominations', denominationsRouter)
 
 export default app
