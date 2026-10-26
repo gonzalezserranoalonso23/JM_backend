@@ -7,12 +7,11 @@
  */
 import { timingSafeEqual } from 'crypto'
 import Denomination from './denominations.model.js'
+import { roundMoney } from '../../utils/money.js'
 
 export const DENOMINATIONS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5]
 
 const MAX_QUANTITY = 1000000
-
-const roundMoney = (amount) => Math.round(amount * 100) / 100
 
 const secretMatches = (provided) => {
   const expected = process.env.CASH_VAULT_SECRET || ''
@@ -62,7 +61,8 @@ const snapshot = async () => {
   })
   const updatedAt = denominations.reduce((latest, row) => {
     if (!row.updatedAt) return latest
-    if (!latest || new Date(row.updatedAt) > new Date(latest)) return row.updatedAt
+    if (!latest || new Date(row.updatedAt) > new Date(latest))
+      return row.updatedAt
     return latest
   }, null)
 
@@ -79,10 +79,16 @@ const parseQuantities = (quantities) => {
   const parsed = []
 
   for (const item of quantities) {
-    const value = DENOMINATIONS.find((denomination) => denomination === Number(item?.value))
+    const value = DENOMINATIONS.find(
+      (denomination) => denomination === Number(item?.value)
+    )
     const quantity = Number(item?.quantity)
     if (value === undefined || seen.has(value)) return null
-    if (!Number.isInteger(quantity) || quantity < 0 || quantity > MAX_QUANTITY) {
+    if (
+      !Number.isInteger(quantity) ||
+      quantity < 0 ||
+      quantity > MAX_QUANTITY
+    ) {
       return null
     }
     seen.add(value)
@@ -132,7 +138,9 @@ export const saveVault = async (req, res) => {
 
     await Denomination.bulkWrite(
       quantities.map(({ value, quantity }) => {
-        const previous = current.denominations.find((row) => row.value === value)
+        const previous = current.denominations.find(
+          (row) => row.value === value
+        )
         const changed = previous?.quantity !== quantity
         return {
           updateOne: {

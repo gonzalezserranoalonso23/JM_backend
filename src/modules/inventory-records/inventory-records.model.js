@@ -25,6 +25,12 @@ const InventoryRecordSchema = createSchema({
     type: String,
     required: [true, 'Proporcionar el precio del producto']
   },
+  // Costo del producto al momento del movimiento. Las salidas lo usan para
+  // que la utilidad no cambie si después se edita el precio de compra.
+  purchasePrice: {
+    type: Number,
+    min: [0, 'El precio de compra no puede ser negativo']
+  },
   quantity: {
     type: Number,
     required: [true, 'Proporcionar un cantidad']
@@ -44,5 +50,7 @@ const InventoryRecordSchema = createSchema({
     required: [true, 'Proporcionar un usuario']
   }
 })
+
+InventoryRecordSchema.index({ date: 1, typeInventory: 1, paymentType: 1 })
 
 export default mongoose.model('InventoryRecord', InventoryRecordSchema)

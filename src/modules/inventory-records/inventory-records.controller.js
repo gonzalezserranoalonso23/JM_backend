@@ -26,16 +26,23 @@ import {
   CATEGORY_FIELDS,
   PAYMENT_TYPE_FIELDS,
   PRODUCT_NAME_FIELDS,
-  PRODUCT_REPORT_FIELDS,
-  SUPPLIER_FIELDS,
   TYPE_INVENTORY_FIELDS
 } from '../../utils/projections.js'
-import { lineTotal, roundMoney } from '../../utils/money.js'
+import { lineTotal } from '../../utils/money.js'
 import {
   createPaginatedResponse,
   escapeRegex,
   getPagination
 } from '../../utils/pagination.js'
+import { isIssueType } from './inventory-records.shared.js'
+import {
+  getLiveInformation,
+  getDailySalesSummary,
+  getLowStockProducts,
+  getSalesByDateRange,
+  getInventoryByType,
+  getInventoryStats
+} from './inventory-records.reports.js'
 
 const getInventoryType = async (id) => {
   if (!isValidObjectId(id)) {
@@ -68,18 +75,6 @@ const getPaymentType = async (id) => {
     throw error
   }
   return paymentType
-}
-
-const isIssueType = (type) => Number(type?.stockDirection) === -1
-
-// Utilidad de una salida: (precio cobrado - costo actual del producto) x cantidad.
-const saleProfit = (record) => {
-  if (!isIssueType(record.typeInventory)) return 0
-  const purchasePrice = Number(record.productName?.purchasePrice)
-  const productPrice = Number(record.productPrice)
-  const quantity = Number(record.quantity) || 0
-  if (!Number.isFinite(purchasePrice) || !Number.isFinite(productPrice)) return 0
-  return (productPrice - purchasePrice) * quantity
 }
 
 const stockDelta = (type, quantity) =>
@@ -290,7 +285,9 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
 
   const isExit = isIssueType(inventoryType)
   const categoryId = product.category?._id || product.category
-  const unitPrice = Number(isExit ? product.productPrice : product.purchasePrice)
+  const unitPrice = Number(
+    isExit ? product.productPrice : product.purchasePrice
+  )
   const totalAmount = lineTotal(quantity, unitPrice)
 
   if (!categoryId || !isValidObjectId(categoryId)) {
@@ -329,6 +326,7 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
       productName,
       category: categoryId,
       productPrice: String(unitPrice),
+      purchasePrice: Number(product.purchasePrice),
       quantity,
       totalAmount,
       paymentType: paymentType?._id ?? null,
@@ -564,367 +562,6 @@ const deleteInventoryRecord = async (req, res) => {
     res.status(500).json({
       message: 'Hubo un error al intentar borrar el registro de inventario  ',
       error
-    })
-  }
-}
-
-// REPORTES Y ANÁLISIS
-
-const DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/
-
-const paymentBucket = (name) => {
-  const label = String(name || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-  if (label.includes('efectivo')) return 'cash'
-  if (label.includes('tarjeta')) return 'card'
-  return ''
-}
-
-// Suma las salidas del día. La fecha llega del frontend; no se usa la del servidor.
-const getLiveInformation = async (req, res) => {
-  const date = String(req.query.date || '').trim()
-  if (!DATE_PARAM.test(date)) {
-    return res
-      .status(400)
-      .json({ message: 'La fecha es requerida con formato YYYY-MM-DD' })
-  }
-
-  try {
-    const issueTypes = await TypeInventory.find({ stockDirection: -1 })
-      .select('_id')
-      .lean()
-    const issueIds = issueTypes.map((type) => type._id)
-
-    const grouped = issueIds.length
-      ? await InventoryRecord.aggregate([
-          { $match: { date, typeInventory: { $in: issueIds } } },
-          { $group: { _id: '$paymentType', total: { $sum: '$totalAmount' } } }
-        ])
-      : []
-
-    const paymentIds = grouped.map((row) => row._id).filter(Boolean)
-    const payments = paymentIds.length
-      ? await PaymentType.find({ _id: { $in: paymentIds } })
-          .select('paymentType')
-          .lean()
-      : []
-    const names = new Map(
-      payments.map((payment) => [String(payment._id), payment.paymentType])
-    )
-
-    let cashSales = 0
-    let cardSales = 0
-    for (const row of grouped) {
-      const amount = Number(row.total) || 0
-      const bucket = paymentBucket(names.get(String(row._id)))
-      if (bucket === 'cash') cashSales += amount
-      if (bucket === 'card') cardSales += amount
-    }
-
-    cashSales = roundMoney(cashSales)
-    cardSales = roundMoney(cardSales)
-
-    return res.status(200).json({
-      date,
-      cashSales,
-      cardSales,
-      totalSales: roundMoney(cashSales + cardSales)
-    })
-  } catch (error) {
-    return res.status(500).json({
-      message: 'Error al obtener las ventas del día',
-      error: error.message
-    })
-  }
-}
-
-const getDailySalesSummary = async (req, res) => {
-  const date = String(req.query.date || '').trim()
-  if (!DATE_PARAM.test(date)) {
-    return res
-      .status(400)
-      .json({ message: 'La fecha es requerida con formato YYYY-MM-DD' })
-  }
-
-  try {
-    const query = { date }
-
-    const records = await InventoryRecord.find(query)
-      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
-      .populate('paymentType', PAYMENT_TYPE_FIELDS)
-      .populate('productName', PRODUCT_NAME_FIELDS)
-      .lean()
-
-    // Filtrar solo salidas (ventas)
-    const exits = records.filter((r) => isIssueType(r.typeInventory))
-
-    const totalSales = exits.reduce(
-      (sum, r) => sum + parseFloat(r.totalAmount),
-      0
-    )
-    const totalTransactions = exits.length
-    const productsSold = exits.length
-
-    res.status(200).json({
-      date,
-      totalSales,
-      totalTransactions,
-      productsSold,
-      transactions: exits
-    })
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener resumen diario',
-      error: error.message
-    })
-  }
-}
-
-const getLowStockProducts = async (req, res) => {
-  const pagination = getPagination(req.query)
-  if (pagination.error) {
-    return res.status(400).json({ message: pagination.error })
-  }
-
-  try {
-    const filter = {
-      isActive: { $ne: false },
-      $expr: { $lt: ['$productStock', '$minimumProductStock'] }
-    }
-    const search =
-      typeof req.query?.search === 'string' ? req.query.search.trim() : ''
-    if (search) {
-      const regex = { $regex: escapeRegex(search), $options: 'i' }
-      filter.$or = [{ productName: regex }, { productDescription: regex }]
-    }
-    const { category } = req.query
-    if (category) {
-      if (!isValidObjectId(category)) {
-        return res.status(400).json({ message: 'Categoría inválida' })
-      }
-      filter.category = category
-    }
-    const query = Product.find(filter)
-      .populate('category', CATEGORY_FIELDS)
-      .populate('supplier', SUPPLIER_FIELDS)
-
-    if (!pagination.requested) {
-      const products = await query
-      return res.status(200).json(products)
-    }
-
-    const [products, total] = await Promise.all([
-      query
-        .sort({ productName: 1 })
-        .skip(pagination.skip)
-        .limit(pagination.limit),
-      Product.countDocuments(filter)
-    ])
-
-    return res
-      .status(200)
-      .json(createPaginatedResponse(products, total, pagination))
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener productos con stock bajo',
-      error: error.message
-    })
-  }
-}
-
-const getSalesByDateRange = async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query
-
-    if (!startDate || !endDate) {
-      return res
-        .status(400)
-        .json({ message: 'Proporcione fecha de inicio y fecha de fin' })
-    }
-
-    const pagination = getPagination(req.query)
-    if (pagination.error) {
-      return res.status(400).json({ message: pagination.error })
-    }
-
-    const filter = {
-      date: { $gte: startDate, $lte: endDate }
-    }
-    if (req.query.paymentType) {
-      if (!isValidObjectId(req.query.paymentType)) {
-        return res.status(400).json({ message: 'ID de tipo de pago inválido' })
-      }
-      filter.paymentType = req.query.paymentType
-    }
-    if (req.query.type) {
-      if (!isValidObjectId(req.query.type)) {
-        return res
-          .status(400)
-          .json({ message: 'ID de tipo de inventario inválido' })
-      }
-      filter.typeInventory = req.query.type
-    }
-
-    const query = InventoryRecord.find(filter)
-      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
-      .populate('paymentType', PAYMENT_TYPE_FIELDS)
-      .populate('productName', PRODUCT_REPORT_FIELDS)
-      .select('-User')
-      .sort({ date: -1 })
-    const records = pagination.requested
-      ? await query.skip(pagination.skip).limit(pagination.limit)
-      : await query
-
-    const byType = {}
-    let totalRevenue = 0
-
-    records.forEach((r) => {
-      const typeId = String(r.typeInventory._id)
-      if (!byType[typeId]) {
-        byType[typeId] = { count: 0, totalAmount: 0, records: [] }
-      }
-      byType[typeId].count += 1
-      byType[typeId].totalAmount += parseFloat(r.totalAmount)
-      byType[typeId].records.push(r)
-
-      if (isIssueType(r.typeInventory)) {
-        totalRevenue += parseFloat(r.totalAmount)
-      }
-    })
-
-    const response = {
-      startDate,
-      endDate,
-      totalRevenue,
-      totalRecords: records.length,
-      byType,
-      allRecords: records
-    }
-    if (pagination.requested) {
-      const summaryFilter = {
-        date: { $gte: startDate, $lte: endDate }
-      }
-      if (filter.paymentType) summaryFilter.paymentType = filter.paymentType
-      const [total, summaryRecords] = await Promise.all([
-        InventoryRecord.countDocuments(filter),
-        InventoryRecord.find(summaryFilter)
-          .populate('typeInventory', TYPE_INVENTORY_FIELDS)
-          .populate('productName', 'purchasePrice')
-      ])
-      const summary = {}
-      for (const record of summaryRecords) {
-        const typeId = String(record.typeInventory._id)
-        if (!summary[typeId]) {
-          summary[typeId] = {
-            count: 0,
-            totalAmount: 0,
-            profit: 0,
-            products: new Set()
-          }
-        }
-        summary[typeId].count += 1
-        summary[typeId].totalAmount += Number(record.totalAmount)
-        summary[typeId].profit = roundMoney(
-          summary[typeId].profit + saleProfit(record)
-        )
-        const productId = record.productName?._id || record.productName
-        summary[typeId].products.add(String(productId))
-      }
-      for (const type of Object.values(summary)) {
-        type.products = type.products.size
-      }
-      return res.status(200).json({
-        ...createPaginatedResponse(records, total, pagination),
-        ...response,
-        summary
-      })
-    }
-    return res.status(200).json(response)
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener ventas por rango de fecha',
-      error: error.message
-    })
-  }
-}
-
-const getInventoryByType = async (req, res) => {
-  try {
-    const { type } = req.query
-
-    if (!isValidObjectId(type)) {
-      return res
-        .status(400)
-        .json({ message: 'ID de tipo de inventario inválido' })
-    }
-
-    const records = await InventoryRecord.find({
-      typeInventory: type
-    })
-      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
-      .populate('paymentType', PAYMENT_TYPE_FIELDS)
-      .populate('productName', PRODUCT_NAME_FIELDS)
-      .populate('category', CATEGORY_FIELDS)
-      .select('-User')
-      .sort({ date: -1 })
-
-    res.status(200).json({
-      type,
-      count: records.length,
-      records
-    })
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener inventario por tipo',
-      error: error.message
-    })
-  }
-}
-
-const getInventoryStats = async (req, res) => {
-  try {
-    const [allProducts, allRecords] = await Promise.all([
-      Product.find(
-        { isActive: { $ne: false } },
-        'productStock productPrice minimumProductStock'
-      ).lean(),
-      InventoryRecord.find({}, 'totalAmount typeInventory')
-        .populate('typeInventory', 'stockDirection')
-        .lean()
-    ])
-
-    const totalProducts = allProducts.length
-    const totalValue = allProducts.reduce(
-      (sum, p) => sum + p.productStock * p.productPrice,
-      0
-    )
-    const lowStockCount = allProducts.filter(
-      (p) => p.productStock < p.minimumProductStock
-    ).length
-    const zeroStockCount = allProducts.filter(
-      (p) => p.productStock === 0
-    ).length
-
-    const exits = allRecords.filter((r) => isIssueType(r.typeInventory))
-    const totalSalesValue = exits.reduce(
-      (sum, r) => sum + parseFloat(r.totalAmount),
-      0
-    )
-
-    res.status(200).json({
-      totalProducts,
-      totalInventoryValue: totalValue,
-      lowStockProducts: lowStockCount,
-      outOfStockProducts: zeroStockCount,
-      totalSalesValue,
-      totalMovements: allRecords.length
-    })
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener estadísticas de inventario',
-      error: error.message
     })
   }
 }
