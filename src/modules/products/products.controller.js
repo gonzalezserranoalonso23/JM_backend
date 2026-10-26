@@ -13,8 +13,8 @@ import ProductsModel from './products.model.js'
 import SuppliersModel from '../suppliers/suppliers.model.js'
 import { isValidObjectId } from 'mongoose'
 import {
+  accentInsensitiveRegex,
   createPaginatedResponse,
-  escapeRegex,
   getPagination
 } from '../../utils/pagination.js'
 
@@ -28,7 +28,7 @@ const getProducts = async (req, res) => {
     const search = req.query?.search?.trim()
     let filter = {}
     if (search) {
-      const regex = { $regex: escapeRegex(search), $options: 'i' }
+      const regex = { $regex: accentInsensitiveRegex(search), $options: 'i' }
       const suppliers = await SuppliersModel.find(
         { suppliersName: regex },
         { _id: 1 }

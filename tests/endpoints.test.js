@@ -115,9 +115,12 @@ vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
   default: makeModel()
 }))
 vi.mock('../src/modules/users/users.model.js', () => ({ default: makeModel() }))
-vi.mock('../src/modules/push-notifications/push-notifications.model.js', () => ({
-  default: makeModel()
-}))
+vi.mock(
+  '../src/modules/push-notifications/push-notifications.model.js',
+  () => ({
+    default: makeModel()
+  })
+)
 
 import CategoriesRouter from '../src/modules/categories/categories.routes.js'
 import DailyInformationRouter from '../src/modules/daily-information/daily-information.routes.js'
@@ -487,7 +490,12 @@ describe('HTTP endpoint coverage', () => {
     expect(productResponse.status).toBe(200)
     expect(ProductModel.find).toHaveBeenLastCalledWith({
       $or: [
-        { productName: { $regex: 'leche', $options: 'i' } },
+        {
+          productName: {
+            $regex: 'l[eéèëêEÉÈËÊ][cçCÇ]h[eéèëêEÉÈËÊ]',
+            $options: 'i'
+          }
+        },
         { supplier: { $in: ['sup1'] } }
       ]
     })
