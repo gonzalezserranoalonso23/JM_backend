@@ -445,6 +445,7 @@ describe('Integración con MongoDB real', () => {
     expect(cardOnly.body.data).toHaveLength(1)
     expect(cardOnly.body.data[0].paymentType._id).toBe(cardPaymentTypeId)
     expect(cardOnly.body.summary[issueTypeId].count).toBe(1)
+    expect(cardOnly.body.summary[issueTypeId].profit).toBe(21)
     const exportedCardRecords = await api(
       'get',
       '/api/inventory-records/reports/date-range'

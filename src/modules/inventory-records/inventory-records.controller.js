@@ -26,6 +26,7 @@ import {
   CATEGORY_FIELDS,
   PAYMENT_TYPE_FIELDS,
   PRODUCT_NAME_FIELDS,
+  PRODUCT_REPORT_FIELDS,
   SUPPLIER_FIELDS,
   TYPE_INVENTORY_FIELDS
 } from '../../utils/projections.js'
@@ -70,6 +71,16 @@ const getPaymentType = async (id) => {
 }
 
 const isIssueType = (type) => Number(type?.stockDirection) === -1
+
+// Utilidad de una salida: (precio cobrado - costo actual del producto) x cantidad.
+const saleProfit = (record) => {
+  if (!isIssueType(record.typeInventory)) return 0
+  const purchasePrice = Number(record.productName?.purchasePrice)
+  const productPrice = Number(record.productPrice)
+  const quantity = Number(record.quantity) || 0
+  if (!Number.isFinite(purchasePrice) || !Number.isFinite(productPrice)) return 0
+  return (productPrice - purchasePrice) * quantity
+}
 
 const stockDelta = (type, quantity) =>
   Number(type.stockDirection) * Number(quantity)
@@ -759,7 +770,7 @@ const getSalesByDateRange = async (req, res) => {
     const query = InventoryRecord.find(filter)
       .populate('typeInventory', TYPE_INVENTORY_FIELDS)
       .populate('paymentType', PAYMENT_TYPE_FIELDS)
-      .populate('productName', PRODUCT_NAME_FIELDS)
+      .populate('productName', PRODUCT_REPORT_FIELDS)
       .select('-User')
       .sort({ date: -1 })
     const records = pagination.requested
@@ -798,10 +809,9 @@ const getSalesByDateRange = async (req, res) => {
       if (filter.paymentType) summaryFilter.paymentType = filter.paymentType
       const [total, summaryRecords] = await Promise.all([
         InventoryRecord.countDocuments(filter),
-        InventoryRecord.find(summaryFilter).populate(
-          'typeInventory',
-          TYPE_INVENTORY_FIELDS
-        )
+        InventoryRecord.find(summaryFilter)
+          .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+          .populate('productName', 'purchasePrice')
       ])
       const summary = {}
       for (const record of summaryRecords) {
@@ -810,12 +820,17 @@ const getSalesByDateRange = async (req, res) => {
           summary[typeId] = {
             count: 0,
             totalAmount: 0,
+            profit: 0,
             products: new Set()
           }
         }
         summary[typeId].count += 1
         summary[typeId].totalAmount += Number(record.totalAmount)
-        summary[typeId].products.add(String(record.productName))
+        summary[typeId].profit = roundMoney(
+          summary[typeId].profit + saleProfit(record)
+        )
+        const productId = record.productName?._id || record.productName
+        summary[typeId].products.add(String(productId))
       }
       for (const type of Object.values(summary)) {
         type.products = type.products.size
