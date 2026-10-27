@@ -17,7 +17,8 @@ vi.mock('../src/modules/products/products.model.js', () => ({
   default: {
     findById: vi.fn(),
     findOneAndUpdate: vi.fn(),
-    find: vi.fn()
+    find: vi.fn(),
+    aggregate: vi.fn()
   }
 }))
 
@@ -35,7 +36,8 @@ vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
         stockDirection: id === '507f1f77bcf86cd799439015' ? -1 : 1
       })
     ),
-    find: vi.fn()
+    find: vi.fn(),
+    collection: { collectionName: 'typeinventories' }
   }
 }))
 
@@ -408,30 +410,47 @@ describe('Business logic tests', () => {
     )
   })
 
-  it('calculates inventory statistics from products and movements', async () => {
+  it('calculates inventory statistics in Mongo', async () => {
     const res = mockRes()
-    Product.find.mockReturnValue(
-      mockChainedPopulate([
-        { productStock: 10, productPrice: 4, minimumProductStock: 5 },
-        { productStock: 2, productPrice: 20, minimumProductStock: 3 },
-        { productStock: 0, productPrice: 8, minimumProductStock: 1 },
-        { productStock: 5, productPrice: 1, minimumProductStock: 5 }
-      ])
-    )
-    InventoryRecordModel.find.mockReturnValue(
-      mockChainedPopulate([
-        { typeInventory: { stockDirection: 1 }, totalAmount: 40 },
-        { typeInventory: { stockDirection: -1 }, totalAmount: '12.50' },
-        { typeInventory: { stockDirection: -1 }, totalAmount: 7.5 }
-      ])
-    )
+    Product.aggregate.mockResolvedValue([
+      {
+        totalProducts: 4,
+        totalInventoryValue: 85,
+        lowStockProducts: 2,
+        outOfStockProducts: 1
+      }
+    ])
+    InventoryRecordModel.aggregate.mockResolvedValue([
+      { totalSalesValue: 20, totalMovements: 3 }
+    ])
 
     await getInventoryStats({}, res)
 
-    expect(Product.find).toHaveBeenCalledWith(
-      { isActive: { $ne: false } },
-      expect.any(String)
-    )
+    expect(Product.aggregate).toHaveBeenCalledWith([
+      { $match: { isActive: { $ne: false } } },
+      {
+        $group: {
+          _id: null,
+          totalProducts: { $sum: 1 },
+          totalInventoryValue: {
+            $sum: { $multiply: ['$productStock', '$productPrice'] }
+          },
+          lowStockProducts: {
+            $sum: {
+              $cond: [{ $lt: ['$productStock', '$minimumProductStock'] }, 1, 0]
+            }
+          },
+          outOfStockProducts: {
+            $sum: { $cond: [{ $eq: ['$productStock', 0] }, 1, 0] }
+          }
+        }
+      }
+    ])
+    const movementPipeline = InventoryRecordModel.aggregate.mock.calls.at(-1)[0]
+    expect(movementPipeline[0].$lookup.from).toBe('typeinventories')
+    expect(movementPipeline[2].$group.totalSalesValue.$sum.$cond[0]).toEqual({
+      $eq: ['$type.stockDirection', -1]
+    })
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith({
       totalProducts: 4,
@@ -440,6 +459,18 @@ describe('Business logic tests', () => {
       outOfStockProducts: 1,
       totalSalesValue: 20,
       totalMovements: 3
+    })
+
+    Product.aggregate.mockResolvedValue([])
+    InventoryRecordModel.aggregate.mockResolvedValue([])
+    await getInventoryStats({}, res)
+    expect(res.json).toHaveBeenLastCalledWith({
+      totalProducts: 0,
+      totalInventoryValue: 0,
+      lowStockProducts: 0,
+      outOfStockProducts: 0,
+      totalSalesValue: 0,
+      totalMovements: 0
     })
   })
 

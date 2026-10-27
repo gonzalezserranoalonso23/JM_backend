@@ -375,38 +375,70 @@ const getInventoryByType = async (req, res) => {
 
 const getInventoryStats = async (req, res) => {
   try {
-    const [allProducts, allRecords] = await Promise.all([
-      Product.find(
-        { isActive: { $ne: false } },
-        'productStock productPrice minimumProductStock'
-      ).lean(),
-      InventoryRecord.find({}, 'totalAmount typeInventory')
-        .populate('typeInventory', 'stockDirection')
-        .lean()
+    // Las sumas corren en Mongo. El dashboard no se trae cada producto ni cada movimiento.
+    const [productRows, movementRows] = await Promise.all([
+      Product.aggregate([
+        { $match: { isActive: { $ne: false } } },
+        {
+          $group: {
+            _id: null,
+            totalProducts: { $sum: 1 },
+            totalInventoryValue: {
+              $sum: { $multiply: ['$productStock', '$productPrice'] }
+            },
+            lowStockProducts: {
+              $sum: {
+                $cond: [
+                  { $lt: ['$productStock', '$minimumProductStock'] },
+                  1,
+                  0
+                ]
+              }
+            },
+            outOfStockProducts: {
+              $sum: { $cond: [{ $eq: ['$productStock', 0] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      InventoryRecord.aggregate([
+        {
+          $lookup: {
+            from: TypeInventory.collection.collectionName,
+            localField: 'typeInventory',
+            foreignField: '_id',
+            as: 'type'
+          }
+        },
+        { $unwind: { path: '$type', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: null,
+            totalMovements: { $sum: 1 },
+            totalSalesValue: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$type.stockDirection', -1] },
+                  toDouble('$totalAmount'),
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ])
     ])
 
-    const totalValue = allProducts.reduce(
-      (sum, product) => sum + product.productStock * product.productPrice,
-      0
-    )
-    const exits = allRecords.filter((record) =>
-      isIssueType(record.typeInventory)
-    )
+    const products = productRows[0] || {}
+    const movements = movementRows[0] || {}
 
     res.status(200).json({
-      totalProducts: allProducts.length,
-      totalInventoryValue: totalValue,
-      lowStockProducts: allProducts.filter(
-        (product) => product.productStock < product.minimumProductStock
-      ).length,
-      outOfStockProducts: allProducts.filter(
-        (product) => product.productStock === 0
-      ).length,
-      totalSalesValue: exits.reduce(
-        (sum, record) => sum + parseFloat(record.totalAmount),
-        0
-      ),
-      totalMovements: allRecords.length
+      totalProducts: products.totalProducts || 0,
+      totalInventoryValue: roundMoney(products.totalInventoryValue || 0),
+      lowStockProducts: products.lowStockProducts || 0,
+      outOfStockProducts: products.outOfStockProducts || 0,
+      totalSalesValue: roundMoney(movements.totalSalesValue || 0),
+      totalMovements: movements.totalMovements || 0
     })
   } catch (error) {
     res.status(500).json({

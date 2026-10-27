@@ -74,6 +74,10 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
         .mockResolvedValue({ tokenVersion: 0, isAdmin: true })
 
       static deleteMany = vi.fn().mockResolvedValue({ deletedCount: 1 })
+
+      static aggregate = vi.fn().mockResolvedValue([])
+
+      static collection = { collectionName: 'mock' }
     }
 
     return MockModel
