@@ -621,6 +621,7 @@ describe('Integración con MongoDB real', () => {
     })
     expect(failed.status).toBe(400)
     expect(failed.body.availableStock).toBe(1)
+    expect(failed.body.message).toMatch(/Agua/)
     expect(await stockOf(cola)).toBe(6)
     expect(await stockOf(agua)).toBe(1)
     expect((await api('get', '/api/inventory-records')).body.length).toBe(

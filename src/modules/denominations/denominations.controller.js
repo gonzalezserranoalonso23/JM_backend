@@ -59,6 +59,7 @@ const snapshot = async () => {
       updatedAt: row?.updatedAt ?? null
     }
   })
+  
   const updatedAt = denominations.reduce((latest, row) => {
     if (!row.updatedAt) return latest
     if (!latest || new Date(row.updatedAt) > new Date(latest))
