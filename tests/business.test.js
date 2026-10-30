@@ -249,7 +249,9 @@ describe('Business logic tests', () => {
       [
         {
           $set: {
-            productStock: { $round: [{ $add: ['$productStock', 7] }, 3] }
+            productStock: {
+              $round: [{ $add: [{ $round: ['$productStock', 3] }, 7] }, 3]
+            }
           }
         }
       ],
@@ -318,11 +320,16 @@ describe('Business logic tests', () => {
 
     expect(InventoryRecordModel.instances[0].save).toHaveBeenCalled()
     expect(Product.findOneAndUpdate).toHaveBeenCalledWith(
-      { _id: '507f1f77bcf86cd799439011', productStock: { $gte: 3 } },
+      {
+        _id: '507f1f77bcf86cd799439011',
+        $expr: { $gte: [{ $round: ['$productStock', 3] }, 3] }
+      },
       [
         {
           $set: {
-            productStock: { $round: [{ $add: ['$productStock', -3] }, 3] }
+            productStock: {
+              $round: [{ $add: [{ $round: ['$productStock', 3] }, -3] }, 3]
+            }
           }
         }
       ],

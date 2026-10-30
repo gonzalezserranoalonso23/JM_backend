@@ -80,27 +80,38 @@ const getPaymentType = async (id) => {
 const stockDelta = (type, quantity) =>
   Number(type.stockDirection) * Number(quantity)
 
-// Ajuste atómico ($inc): evita carreras entre peticiones simultáneas. Al restar
-// exige stock suficiente, salvo con `force` (reversas internas).
+const roundQty = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 1000) / 1000
+
+// Ajuste atómico: evita carreras entre peticiones simultáneas. Al restar exige
+// que el stock ya redondeado a 3 decimales alcance, el mismo número que ve la
+// pantalla. Comparar el double crudo rechazaba la última pieza (0.9996 se ve
+// como 1 y no cumple stock >= 1).
 const adjustStock = (productId, delta, { force = false } = {}) => {
+  const roundedDelta = roundQty(delta)
   const filter = { _id: productId }
-  if (delta < 0 && !force) filter.productStock = { $gte: -delta }
+  if (roundedDelta < 0 && !force) {
+    filter.$expr = {
+      $gte: [{ $round: ['$productStock', 3] }, roundQty(-roundedDelta)]
+    }
+  }
   return Product.findOneAndUpdate(
     filter,
-    // $inc acumulaba error de punto flotante (0.1 + 0.2); se redondea a 3 decimales
     [
       {
         $set: {
-          productStock: { $round: [{ $add: ['$productStock', delta] }, 3] }
+          productStock: {
+            $round: [
+              { $add: [{ $round: ['$productStock', 3] }, roundedDelta] },
+              3
+            ]
+          }
         }
       }
     ],
     { returnDocument: 'after', updatePipeline: true }
   )
 }
-
-const roundQty = (value) =>
-  Math.round((Number(value) + Number.EPSILON) * 1000) / 1000
 
 const insufficientStockError = (
   availableStock,

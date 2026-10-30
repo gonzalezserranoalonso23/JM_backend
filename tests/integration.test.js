@@ -668,6 +668,118 @@ describe('Integración con MongoDB real', () => {
     expect(await stockOf(agua)).toBe(1)
   })
 
+  it('bulk de salidas: suma el carrito y no deja renglones si uno no alcanza', async () => {
+    const category = (
+      await api('post', '/api/categories').send({ categories: 'Abarrotes' })
+    ).body
+    const supplier = (
+      await api('post', '/api/suppliers').send({
+        suppliersName: 'Abarrotes JM',
+        suppliersContact: 'Luis',
+        supplierPhone: '5550003333'
+      })
+    ).body
+    const create = async (name, stock) =>
+      (
+        await api('post', '/api/products').send({
+          productName: name,
+          productDescription: 'pieza',
+          purchasePrice: 8,
+          productPrice: 12,
+          productStock: stock,
+          minimumProductStock: 1,
+          supplier: supplier._id,
+          category: category._id
+        })
+      ).body
+    const stockOf = async (product) =>
+      (await api('get', `/api/products/${product._id}`)).body.productStock
+    const countRecords = async () =>
+      (await api('get', '/api/inventory-records')).body.length
+    const line = (product, typeInventory, quantity) => ({
+      date: '2026-10-29',
+      typeInventory,
+      productName: product._id,
+      quantity
+    })
+
+    const arroz = await create('Arroz a granel', 0.3)
+    const frijol = await create('Frijol', 10)
+    const before = await countRecords()
+
+    const grams = await api('post', '/api/inventory-records/bulk').send({
+      records: [
+        line(arroz, issueTypeId, 0.1),
+        line(arroz, issueTypeId, 0.1),
+        line(arroz, issueTypeId, 0.1)
+      ]
+    })
+    expect(grams.status, JSON.stringify(grams.body)).toBe(201)
+    expect(grams.body).toHaveLength(3)
+    expect(await stockOf(arroz)).toBe(0)
+
+    const summed = await api('post', '/api/inventory-records/bulk').send([
+      line(frijol, issueTypeId, 6),
+      line(frijol, issueTypeId, 6)
+    ])
+    expect(summed.status).toBe(400)
+    expect(summed.body.productName).toBe('Frijol')
+    expect(summed.body.availableStock).toBe(10)
+    expect(summed.body.requestedQuantity).toBe(12)
+    expect(summed.body.message).toMatch(/Frijol/)
+    expect(await stockOf(frijol)).toBe(10)
+    expect(await countRecords()).toBe(before + 3)
+
+    const partial = await api('post', '/api/inventory-records/bulk').send({
+      records: [
+        line(frijol, issueTypeId, 4),
+        { ...line(frijol, issueTypeId, 1), date: '29/10/2026' }
+      ]
+    })
+    expect(partial.status).toBe(400)
+    expect(await stockOf(frijol)).toBe(10)
+    expect(await countRecords()).toBe(before + 3)
+
+    const entry = await api('post', '/api/inventory-records/bulk').send({
+      records: [
+        line(frijol, entryTypeId, 2),
+        line(frijol, entryTypeId, 1.5)
+      ]
+    })
+    expect(entry.status, JSON.stringify(entry.body)).toBe(201)
+    expect(await stockOf(frijol)).toBe(13.5)
+
+    // 0.9996 se muestra como 1. Vender esa última pieza tiene que poder hacerse.
+    const setStock = (product, productStock) =>
+      mongoose.model('Product').collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(product._id) },
+        { $set: { productStock } }
+      )
+    const ultimo = await create('Ultimo', 1)
+    await setStock(ultimo, 0.9996)
+    const lastPiece = await api('post', '/api/inventory-records/bulk').send({
+      records: [line(ultimo, issueTypeId, 1)]
+    })
+    expect(lastPiece.status, JSON.stringify(lastPiece.body)).toBe(201)
+    expect(await stockOf(ultimo)).toBe(0)
+
+    const corto = await create('Corto', 1)
+    await setStock(corto, 0.9994)
+    const notEnough = await api('post', '/api/inventory-records/bulk').send({
+      records: [line(corto, issueTypeId, 1)]
+    })
+    expect(notEnough.status).toBe(400)
+    expect(await stockOf(corto)).toBe(0.9994)
+
+    const doble = await create('Doble', 1)
+    await setStock(doble, 0.9996)
+    const split = await api('post', '/api/inventory-records/bulk').send({
+      records: [line(doble, issueTypeId, 0.5), line(doble, issueTypeId, 0.5)]
+    })
+    expect(split.status, JSON.stringify(split.body)).toBe(201)
+    expect(await stockOf(doble)).toBe(0)
+  })
+
   it('abre la caja fuerte con el secreto y guarda las denominaciones', async () => {
     process.env.CASH_VAULT_SECRET = 'vault-secret'
     const quantities = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5].map(
