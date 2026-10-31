@@ -187,7 +187,7 @@ describe('Business logic tests', () => {
     expect(res.status).toHaveBeenCalledWith(400)
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: 'Stock insuficiente',
+        message: 'Stock insuficiente. Disponible: 2',
         availableStock: 2,
         requestedQuantity: 5
       })

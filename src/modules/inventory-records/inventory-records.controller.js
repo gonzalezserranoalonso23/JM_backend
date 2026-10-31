@@ -491,14 +491,16 @@ const createInventoryRecord = async (req, res) => {
   }
 }
 
-const undoCreatedRecords = async (created) => {
+const undoStockChanges = async (stockChanges) => {
   let failed = false
-  for (const item of created.reverse()) {
+  for (const change of stockChanges.reverse()) {
     try {
-      await rollbackRecord(item.rollback)
+      await adjustStock(change.productId, -change.stockChange, { force: true })
     } catch {
       try {
-        await rollbackRecord(item.rollback)
+        await adjustStock(change.productId, -change.stockChange, {
+          force: true
+        })
       } catch {
         failed = true
       }
@@ -507,9 +509,18 @@ const undoCreatedRecords = async (created) => {
   return failed
 }
 
-// Recibe un carrito. Primero valida el stock de todas las salidas juntas.
-// Si uno no alcanza, no se guarda ningún renglón. Si falla a medias por una
-// carrera, se deshacen los ya creados.
+const populateRecords = (ids) =>
+  InventoryRecord.find({ _id: { $in: ids } })
+    .populate('typeInventory', TYPE_INVENTORY_FIELDS)
+    .populate('paymentType', PAYMENT_TYPE_FIELDS)
+    .populate('productName', PRODUCT_NAME_FIELDS)
+    .populate('category', CATEGORY_FIELDS)
+    .select('-User')
+    .lean()
+
+// Recibe un carrito. Valida todo el stock de salidas antes de escribir.
+// Ajusta stock por producto (una vez) e inserta los renglones en lote para
+// no pasarse del timeout del cliente (~25s) en capturas grandes.
 const createInventoryRecords = async (req, res) => {
   const records = Array.isArray(req.body) ? req.body : req.body.records
 
@@ -520,26 +531,190 @@ const createInventoryRecords = async (req, res) => {
   }
 
   const authenticatedUserId = req.user?.id || req.userId
-  const created = []
+  const appliedStock = []
+  let insertedIds = []
 
   try {
+    const typeIds = [
+      ...new Set(records.map((row) => String(row?.typeInventory || '')))
+    ]
+    const paymentIds = [
+      ...new Set(
+        records
+          .map((row) => row?.paymentType)
+          .filter((id) => id !== undefined && id !== null && id !== '')
+          .map(String)
+      )
+    ]
+    const productIds = [
+      ...new Set(records.map((row) => String(row?.productName || '')))
+    ]
+
+    const [types, payments, products] = await Promise.all([
+      TypeInventory.find({ _id: { $in: typeIds.filter(isValidObjectId) } }),
+      paymentIds.length
+        ? PaymentType.find({
+            _id: { $in: paymentIds.filter(isValidObjectId) }
+          })
+        : Promise.resolve([]),
+      Product.find({ _id: { $in: productIds.filter(isValidObjectId) } })
+    ])
+
+    const typeById = new Map(types.map((doc) => [String(doc._id), doc]))
+    const paymentById = new Map(payments.map((doc) => [String(doc._id), doc]))
+    const productById = new Map(products.map((doc) => [String(doc._id), doc]))
+
     const drafts = []
     for (const payload of records) {
-      drafts.push(
-        await prepareInventoryRecord(payload, authenticatedUserId)
+      let inventoryType = typeById.get(String(payload?.typeInventory || ''))
+      if (!inventoryType) {
+        inventoryType = await getInventoryType(payload?.typeInventory)
+      }
+
+      const paymentRaw = payload?.paymentType
+      let paymentType = null
+      if (paymentRaw !== undefined && paymentRaw !== null && paymentRaw !== '') {
+        paymentType = paymentById.get(String(paymentRaw)) || null
+        if (!paymentType) paymentType = await getPaymentType(paymentRaw)
+      }
+
+      let product = productById.get(String(payload?.productName || ''))
+      if (!product) {
+        if (!isValidObjectId(payload?.productName)) {
+          const error = new Error('ID de producto inválido')
+          error.status = 400
+          throw error
+        }
+        product = await Product.findById(payload.productName)
+        if (!product) {
+          const error = new Error('Producto no encontrado')
+          error.status = 404
+          throw error
+        }
+      }
+
+      const clientDate = String(payload.date || '').trim()
+      if (!CLIENT_DATE.test(clientDate)) {
+        const error = new Error('La fecha es requerida con formato YYYY-MM-DD')
+        error.status = 400
+        throw error
+      }
+
+      const quantity = roundQty(payload.quantity)
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        const error = new Error('Cantidad inválida')
+        error.status = 400
+        throw error
+      }
+
+      if (!authenticatedUserId) {
+        const error = new Error('Usuario no autenticado')
+        error.status = 401
+        throw error
+      }
+
+      const isExit = isIssueType(inventoryType)
+      const categoryId = product.category?._id || product.category
+      const unitPrice = Number(
+        isExit ? product.productPrice : product.purchasePrice
       )
+      const totalAmount = lineTotal(quantity, unitPrice)
+
+      if (!categoryId || !isValidObjectId(categoryId)) {
+        const error = new Error('El producto no tiene una categoría válida')
+        error.status = 400
+        throw error
+      }
+
+      if (!Number.isFinite(unitPrice) || totalAmount === null) {
+        const error = new Error('El producto no tiene un precio válido')
+        error.status = 400
+        throw error
+      }
+
+      drafts.push({
+        clientDate,
+        inventoryType,
+        paymentType,
+        product,
+        quantity,
+        isExit,
+        categoryId,
+        unitPrice,
+        totalAmount,
+        authenticatedUserId
+      })
     }
+
     await assertExitStock(drafts)
 
+    const stockByProduct = new Map()
     for (const draft of drafts) {
-      created.push(await persistInventoryRecord(draft))
+      const key = String(draft.product._id)
+      const delta = stockDelta(draft.inventoryType, draft.quantity)
+      const row = stockByProduct.get(key) || {
+        productId: draft.product._id,
+        name: draft.product.productName,
+        delta: 0
+      }
+      row.delta = roundQty(row.delta + delta)
+      stockByProduct.set(key, row)
     }
 
-    res.status(201).json(created.map((item) => item.populated))
+    for (const row of stockByProduct.values()) {
+      if (row.delta === 0) continue
+      const updatedProduct = await adjustStock(row.productId, row.delta)
+      if (!updatedProduct) {
+        const current = await Product.findById(row.productId).select(
+          'productStock productName'
+        )
+        throw insufficientStockError(
+          current?.productStock,
+          Math.abs(row.delta),
+          current?.productName || row.name
+        )
+      }
+      appliedStock.push({
+        productId: row.productId,
+        stockChange: row.delta
+      })
+    }
+
+    const docs = drafts.map((draft) => ({
+      date: draft.clientDate,
+      typeInventory: draft.inventoryType._id,
+      productName: draft.product._id,
+      category: draft.categoryId,
+      productPrice: String(draft.unitPrice),
+      purchasePrice: Number(draft.product.purchasePrice),
+      quantity: draft.quantity,
+      totalAmount: draft.totalAmount,
+      paymentType: draft.paymentType?._id ?? null,
+      User: draft.authenticatedUserId
+    }))
+
+    const inserted = await InventoryRecord.insertMany(docs, { ordered: true })
+    insertedIds = inserted.map((doc) => doc._id)
+
+    const populated = await populateRecords(insertedIds)
+    const byId = new Map(populated.map((doc) => [String(doc._id), doc]))
+    res.status(201).json(insertedIds.map((id) => byId.get(String(id))))
   } catch (rawError) {
     const error = toHttpError(rawError)
-    const failedAt = created.length
-    const rollbackFailed = await undoCreatedRecords(created)
+    let rollbackFailed = false
+
+    if (insertedIds.length > 0) {
+      try {
+        await InventoryRecord.deleteMany({ _id: { $in: insertedIds } })
+      } catch {
+        rollbackFailed = true
+      }
+    }
+
+    if (appliedStock.length > 0) {
+      rollbackFailed = (await undoStockChanges(appliedStock)) || rollbackFailed
+    }
+
     res.status(rollbackFailed ? 500 : error.status || 500).json({
       message: rollbackFailed
         ? 'El carrito no se completó y no se pudo deshacer. Revisa los movimientos antes de volver a registrarlo.'
@@ -550,7 +725,7 @@ const createInventoryRecords = async (req, res) => {
       requestedQuantity: rollbackFailed ? undefined : error.requestedQuantity,
       productName: rollbackFailed ? undefined : error.productName,
       error: error.status && !rollbackFailed ? undefined : error.message,
-      failedAt
+      failedAt: 0
     })
   }
 }

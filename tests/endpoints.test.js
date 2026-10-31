@@ -49,7 +49,7 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
 
       populate = vi.fn().mockImplementation(async () => ({ ...this, _id: id }))
 
-      static find = vi.fn(() => makeQuery([]))
+      static find = vi.fn(() => makeQuery([makeDocument()]))
 
       static countDocuments = vi.fn().mockResolvedValue(0)
 
@@ -68,6 +68,10 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
       static deleteOne = vi.fn().mockResolvedValue({ deletedCount: 1 })
 
       static updateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 })
+
+      static insertMany = vi.fn().mockImplementation(async (docs = []) =>
+        docs.map((doc) => ({ ...makeDocument(), ...doc, _id: id }))
+      )
 
       static findAuthState = vi
         .fn()
