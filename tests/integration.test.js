@@ -209,13 +209,18 @@ describe('Integración con MongoDB real', () => {
 
   it('un usuario modifica y elimina solo sus pendientes', async () => {
     const regular = await mongoose.model('User').create({
-      username: 'cajero',
+      username: 'cajero-tareas',
       password: 'x',
-      email: 'cajero@jm.test',
+      email: 'cajero-tareas@jm.test',
       isAdmin: false
     })
     const regularAuth = jwt.sign(
-      { id: String(regular._id), username: 'cajero', isAdmin: false, tv: 0 },
+      {
+        id: String(regular._id),
+        username: 'cajero-tareas',
+        isAdmin: false,
+        tv: 0
+      },
       process.env.SECURITY_JM
     )
     const asRegular = (method, url) =>
@@ -668,9 +673,53 @@ describe('Integración con MongoDB real', () => {
     expect(await stockOf(agua)).toBe(1)
   })
 
+  it('bulk grande de salidas: un solo lote ajusta stock y guarda todos los renglones', async () => {
+    const category = (
+      await api('post', '/api/categories').send({ categories: 'Mayoreo' })
+    ).body
+    const supplier = (
+      await api('post', '/api/suppliers').send({
+        suppliersName: 'Mayoreo JM',
+        suppliersContact: 'Rosa',
+        supplierPhone: '5550004444'
+      })
+    ).body
+    const product = (
+      await api('post', '/api/products').send({
+        productName: 'Caja a granel',
+        productDescription: 'pieza',
+        purchasePrice: 5,
+        productPrice: 9,
+        productStock: 250,
+        minimumProductStock: 1,
+        supplier: supplier._id,
+        category: category._id
+      })
+    ).body
+
+    const records = Array.from({ length: 200 }, () => ({
+      date: '2026-10-30',
+      typeInventory: issueTypeId,
+      productName: product._id,
+      quantity: 1,
+      paymentType: cashPaymentTypeId
+    }))
+
+    const bulk = await api('post', '/api/inventory-records/bulk').send({
+      records
+    })
+    expect(bulk.status, JSON.stringify(bulk.body)).toBe(201)
+    expect(bulk.body).toHaveLength(200)
+    expect(
+      (await api('get', `/api/products/${product._id}`)).body.productStock
+    ).toBe(50)
+  })
+
   it('bulk de salidas: suma el carrito y no deja renglones si uno no alcanza', async () => {
     const category = (
-      await api('post', '/api/categories').send({ categories: 'Abarrotes' })
+      await api('post', '/api/categories').send({
+        categories: 'Abarrotes granel'
+      })
     ).body
     const supplier = (
       await api('post', '/api/suppliers').send({
