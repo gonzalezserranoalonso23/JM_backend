@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import webPush from 'web-push'
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import request from 'supertest'
@@ -313,8 +314,10 @@ describe('HTTP endpoint coverage', () => {
 
   beforeAll(() => {
     process.env.SECURITY_JM = 'endpoint-test-secret'
-    process.env.VAPID_PUBLIC_KEY = 'test-public-key'
-    process.env.VAPID_PRIVATE_KEY = 'test-private-key'
+    const vapid = webPush.generateVAPIDKeys()
+    process.env.VAPID_PUBLIC_KEY = vapid.publicKey
+    process.env.VAPID_PRIVATE_KEY = vapid.privateKey
+    process.env.VAPID_SUBJECT = 'mailto:test@jm.local'
     token = jwt.sign(
       { id: TEST_ID, username: 'test-user', isAdmin: true },
       process.env.SECURITY_JM

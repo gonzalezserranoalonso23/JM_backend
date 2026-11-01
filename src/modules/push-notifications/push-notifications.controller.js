@@ -6,16 +6,17 @@
  * DELETE /subscribe        -> unsubscribePush body opcional: { endpoint }
  */
 import PushSubscription from './push-notifications.model.js'
-import { getVapidPublicKey, isWebPushConfigured } from '../../utils/webPush.js'
+import { readVapidKeys } from '../../utils/webPush.js'
 
 export const getVapidKey = (req, res) => {
-  if (!isWebPushConfigured()) {
-    return res
-      .status(503)
-      .json({ message: 'Notificaciones push no configuradas' })
+  const keys = readVapidKeys()
+  if (!keys.valid) {
+    return res.status(503).json({
+      message: 'La clave de notificaciones no está configurada'
+    })
   }
 
-  return res.status(200).json({ publicKey: getVapidPublicKey() })
+  return res.status(200).json({ publicKey: keys.publicKey })
 }
 
 export const subscribePush = async (req, res) => {
