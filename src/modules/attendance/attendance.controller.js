@@ -4,8 +4,8 @@
  *
  * GET  /me         -> getMyAttendance     turnos de quien está autenticado
  * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
- * POST /check-in   -> checkIn             body: { latitude, longitude } | solo personal, en su día de trabajo y en el lugar
- * POST /check-out  -> checkOut            cierra la entrada abierta | solo personal, exige una entrada
+ * POST /check-in   -> checkIn             body: { latitude, longitude } | quien tiene horario, en su día y en el lugar
+ * POST /check-out  -> checkOut            cierra la entrada abierta | quien tiene horario, exige una entrada
  */
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
@@ -77,14 +77,12 @@ const workplace = () => {
   return { latitude, longitude, radius }
 }
 
-const staffOnly = (req, res) => {
-  if (req.isAdmin) {
-    res.status(403).json({
-      message: 'La asistencia es para el personal, no para administradores'
-    })
-    return false
-  }
-  return true
+const canPunch = (req, user, res) => {
+  if (!req.isAdmin || user?.haveSchedule === true) return true
+  res.status(403).json({
+    message: 'La asistencia es para el personal, no para administradores'
+  })
+  return false
 }
 
 const getMyAttendance = async (req, res) => {
@@ -120,7 +118,9 @@ const getAttendanceDay = async (req, res) => {
   }
   try {
     const [staff, records] = await Promise.all([
-      User.find({ isAdmin: { $ne: true } })
+      User.find({
+        $or: [{ isAdmin: { $ne: true } }, { haveSchedule: true }]
+      })
         .select(USER_FIELDS)
         .sort({ username: 1 })
         .lean(),
@@ -139,11 +139,12 @@ const getAttendanceDay = async (req, res) => {
 }
 
 const checkIn = async (req, res) => {
-  if (!staffOnly(req, res)) return
+  let user
   try {
-    const user = await User.findById(req.userId)
+    user = await User.findById(req.userId)
       .select('haveSchedule schedule')
       .lean()
+    if (!canPunch(req, user, res)) return
     if (!worksToday(user)) {
       return res.status(403).json({ message: 'Hoy no es tu día de trabajo' })
     }
@@ -214,8 +215,9 @@ const checkIn = async (req, res) => {
 }
 
 const checkOut = async (req, res) => {
-  if (!staffOnly(req, res)) return
   try {
+    const user = await User.findById(req.userId).select('haveSchedule').lean()
+    if (!canPunch(req, user, res)) return
     const record = await Attendance.findOneAndUpdate(
       { user: req.userId, checkOutAt: null },
       { $set: { checkOutAt: new Date() } },

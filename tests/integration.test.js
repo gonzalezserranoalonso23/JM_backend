@@ -1195,5 +1195,33 @@ describe('Autenticación y roles', () => {
     expect(day.body.staff.some((user) => user.username === 'asistente')).toBe(
       true
     )
+
+    const boss = await mongoose.model('User').create({
+      username: 'jefe',
+      password: 'x',
+      email: 'jefe@jm.test',
+      isAdmin: true,
+      tokenVersion: 0,
+      haveSchedule: true,
+      schedule: weekSchedule()
+    })
+    const bossToken = jwt.sign(
+      {
+        id: String(boss._id),
+        username: 'jefe',
+        isAdmin: true,
+        tv: 0
+      },
+      process.env.SECURITY_JM
+    )
+    const bossIn = await request(app)
+      .post('/api/attendance/check-in')
+      .set('Authorization', 'Bearer ' + bossToken)
+      .send(atWork)
+    expect(bossIn.status, JSON.stringify(bossIn.body)).toBe(201)
+    const withBoss = await api('get', `/api/attendance?date=${bossIn.body.date}`)
+    expect(withBoss.body.staff.some((user) => user.username === 'jefe')).toBe(
+      true
+    )
   })
 })
