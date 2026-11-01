@@ -303,7 +303,7 @@ const requestBody = (endpoint) => {
 
 const expectedStatus = (endpoint) => {
   if (endpoint.url === '/api/users/login') return 200
-  if (endpoint.url === '/api/users/logout') return 200
+  if (endpoint.path.endsWith('/logout')) return 200
   if (endpoint.method === 'post') return 201
   return 200
 }

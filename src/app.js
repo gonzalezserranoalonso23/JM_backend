@@ -19,6 +19,7 @@ import ordersRouter from './modules/orders/orders.routes.js'
 import tasksRouter from './modules/tasks/tasks.routes.js'
 import pushNotificationsRouter from './modules/push-notifications/push-notifications.routes.js'
 import denominationsRouter from './modules/denominations/denominations.routes.js'
+import attendanceRouter from './modules/attendance/attendance.routes.js'
 import { handleErrors, notFound } from './middlewares/handleErrors.js'
 
 dotenv.config()
@@ -61,6 +62,7 @@ app.use('/api/orders', ordersRouter)
 app.use('/api/tasks', tasksRouter)
 app.use('/api/push', pushNotificationsRouter)
 app.use('/api/denominations', denominationsRouter)
+app.use('/api/attendance', attendanceRouter)
 
 app.use(notFound)
 app.use(handleErrors)

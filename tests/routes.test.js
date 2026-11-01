@@ -12,6 +12,7 @@ import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.ro
 import UsersRouter from '../src/modules/users/users.routes.js'
 import PushNotificationsRouter from '../src/modules/push-notifications/push-notifications.routes.js'
 import DenominationsRouter from '../src/modules/denominations/denominations.routes.js'
+import AttendanceRouter from '../src/modules/attendance/attendance.routes.js'
 
 const getRoutes = (router) =>
   router.stack
@@ -26,7 +27,11 @@ describe('Route registration smoke tests', () => {
     expect(getRoutes(UsersRouter)).toEqual(
       expect.arrayContaining([
         { method: 'POST', path: '/login' },
+        { method: 'POST', path: '/logout' },
+        { method: 'POST', path: '/:id/logout' },
         { method: 'POST', path: '/register' },
+        { method: 'GET', path: '/assignable' },
+        { method: 'GET', path: '/me' },
         { method: 'GET', path: '/' },
         { method: 'GET', path: '/:id' },
         { method: 'PUT', path: '/:id' },
@@ -153,6 +158,17 @@ describe('Route registration smoke tests', () => {
         { method: 'GET', path: '/' },
         { method: 'POST', path: '/open' },
         { method: 'PUT', path: '/' }
+      ])
+    )
+  })
+
+  it('declares all attendance routes', () => {
+    expect(getRoutes(AttendanceRouter)).toEqual(
+      expect.arrayContaining([
+        { method: 'GET', path: '/me' },
+        { method: 'GET', path: '/' },
+        { method: 'POST', path: '/check-in' },
+        { method: 'POST', path: '/check-out' }
       ])
     )
   })

@@ -3,6 +3,7 @@ import request from 'supertest'
 import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
 import { MongoMemoryServer } from 'mongodb-memory-server'
+import { mexicoCityDate } from '../src/modules/attendance/attendance.controller.js'
 
 process.env.SECURITY_JM = 'integration-secret'
 
@@ -97,6 +98,13 @@ describe('Integración con MongoDB real', () => {
       .send({ username: 'cajero', password: 'secreto1' })
     expect(ok.status).toBe(200)
     expect(ok.body.token).toBeTruthy()
+    const me = await request(app)
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${ok.body.token}`)
+    expect(me.status).toBe(200)
+    expect(me.body.username).toBe('cajero')
+    expect(me.body.password).toBeUndefined()
+    expect(me.body.haveSchedule).toBe(false)
 
     const bad = await request(app)
       .post('/api/users/login')
@@ -133,6 +141,26 @@ describe('Integración con MongoDB real', () => {
       isAdmin: false
     })
     expect(upd.status).toBe(200)
+    const scheduled = await api('put', `/api/users/${found._id}`).send({
+      isAdmin: true,
+      haveSchedule: true,
+      schedule: {
+        monday: { enabled: true, start: '09:00', end: '18:00' }
+      }
+    })
+    expect(scheduled.status).toBe(200)
+    expect(scheduled.body.haveSchedule).toBe(true)
+    expect(scheduled.body.schedule.monday).toMatchObject({
+      enabled: true,
+      start: '09:00',
+      end: '18:00'
+    })
+    expect(scheduled.body.schedule.sunday.enabled).toBe(false)
+    const badSchedule = await api('put', `/api/users/${found._id}`).send({
+      haveSchedule: true,
+      schedule: { monday: { enabled: true, start: '18:00', end: '09:00' } }
+    })
+    expect(badSchedule.status).toBe(400)
     const noPass = await api('put', `/api/users/${found._id}`).send({
       fullName: 'Sin contraseña',
       isAdmin: true
@@ -140,6 +168,13 @@ describe('Integración con MongoDB real', () => {
     expect(noPass.status, JSON.stringify(noPass.body)).toBe(200)
     expect(noPass.body.fullName).toBe('Sin contraseña')
     expect(noPass.body.username).toBe('nuevo')
+    expect(noPass.body.schedule.monday.enabled).toBe(true)
+    const cleared = await api('put', `/api/users/${found._id}`).send({
+      haveSchedule: false
+    })
+    expect(cleared.status).toBe(200)
+    expect(cleared.body.haveSchedule).toBe(false)
+    expect(cleared.body.schedule).toBeFalsy()
     const relogin = await request(app)
       .post('/api/users/login')
       .send({ username: 'nuevo', password: 'abc12345' })
@@ -958,6 +993,44 @@ describe('Autenticación y roles', () => {
     expect((await as(t, 'get', '/api/products')).status).toBe(401)
   })
 
+  it('un admin cierra las sesiones de otro usuario', async () => {
+    const target = await mongoose.model('User').create({
+      username: 'cajero-sesion',
+      password: 'x',
+      email: 'cajero-sesion@jm.test',
+      isAdmin: false,
+      tokenVersion: 0
+    })
+    const token = jwt.sign(
+      {
+        id: String(target._id),
+        username: target.username,
+        isAdmin: false,
+        tv: 0
+      },
+      process.env.SECURITY_JM
+    )
+    expect((await as(token, 'get', '/api/products')).status).toBe(200)
+    expect(
+      (await as(token, 'post', `/api/users/${target._id}/logout`)).status
+    ).toBe(403)
+    const closed = await api('post', `/api/users/${target._id}/logout`)
+    expect(closed.status, JSON.stringify(closed.body)).toBe(200)
+    expect((await as(token, 'get', '/api/products')).status).toBe(401)
+    expect(
+      (
+        await api(
+          'post',
+          `/api/users/${new mongoose.Types.ObjectId()}/logout`
+        )
+      ).status
+    ).toBe(404)
+    expect((await api('post', '/api/users/no-es-id/logout')).status).toBe(400)
+    const adminClosed = await api('post', `/api/users/${userId}/logout`)
+    expect(adminClosed.status).toBe(403)
+    expect((await api('get', '/api/users')).status).toBe(200)
+  })
+
   it('rechaza tokens de usuarios eliminados y de otro algoritmo', async () => {
     const ghost = new mongoose.Types.ObjectId().toString()
     const deleted = jwt.sign(
@@ -996,5 +1069,80 @@ describe('Autenticación y roles', () => {
       .send({ username: 'jwtadmin', password: 'pw12345' })
     expect(res.status).toBe(200)
     expect(jwt.decode(res.body.token).isAdmin).toBe(true)
+  })
+
+  it('el personal registra entrada y salida; un admin no checa', async () => {
+    const staff = await mongoose.model('User').create({
+      username: 'asistente',
+      password: 'x',
+      email: 'asistente@jm.test',
+      isAdmin: false,
+      tokenVersion: 0
+    })
+    const token = jwt.sign(
+      {
+        id: String(staff._id),
+        username: 'asistente',
+        isAdmin: false,
+        tv: 0
+      },
+      process.env.SECURITY_JM
+    )
+    const asStaff = (method, url) =>
+      request(app)
+        [method](url)
+        .set('Authorization', 'Bearer ' + token)
+
+    expect(
+      (await api('post', '/api/attendance/check-in').send({
+        latitude: 19.432608,
+        longitude: -99.133209
+      })).status
+    ).toBe(403)
+    expect((await asStaff('post', '/api/attendance/check-in').send({})).status).toBe(
+      400
+    )
+
+    process.env.WORKPLACE_LATITUDE = '19.432608'
+    process.env.WORKPLACE_LONGITUDE = '-99.133209'
+    process.env.WORKPLACE_RADIUS_METERS = '150'
+    const atWork = { latitude: 19.432608, longitude: -99.133209 }
+    const away = await asStaff('post', '/api/attendance/check-in').send({
+      date: '1999-01-01',
+      latitude: 19.45,
+      longitude: -99.133209
+    })
+    expect(away.status).toBe(403)
+
+    const entered = await asStaff('post', '/api/attendance/check-in').send({
+      date: '1999-01-01',
+      ...atWork
+    })
+    expect(entered.status, JSON.stringify(entered.body)).toBe(201)
+    expect(entered.body.date).toBe(mexicoCityDate())
+    expect(entered.body.checkOutAt).toBeNull()
+    expect(
+      (await asStaff('post', '/api/attendance/check-in').send(atWork)).status
+    ).toBe(409)
+
+    const left = await asStaff('post', '/api/attendance/check-out')
+    expect(left.status, JSON.stringify(left.body)).toBe(200)
+    expect(left.body.checkOutAt).toBeTruthy()
+    expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(400)
+
+    const mine = await asStaff('get', '/api/attendance/me')
+    expect(mine.status).toBe(200)
+    expect(mine.body.records).toHaveLength(1)
+    expect(mine.body.open).toBeNull()
+
+    expect(
+      (await asStaff('get', `/api/attendance?date=${mexicoCityDate()}`)).status
+    ).toBe(403)
+    const day = await api('get', `/api/attendance?date=${entered.body.date}`)
+    expect(day.status, JSON.stringify(day.body)).toBe(200)
+    expect(day.body.records).toHaveLength(1)
+    expect(day.body.staff.some((user) => user.username === 'asistente')).toBe(
+      true
+    )
   })
 })

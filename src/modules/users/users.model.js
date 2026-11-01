@@ -1,6 +1,30 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
+const shiftSchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: false },
+    start: { type: String, default: '' },
+    end: { type: String, default: '' }
+  },
+  { _id: false }
+)
+
+const day = () => ({ type: shiftSchema })
+
+const scheduleSchema = new mongoose.Schema(
+  {
+    monday: day(),
+    tuesday: day(),
+    wednesday: day(),
+    thursday: day(),
+    friday: day(),
+    saturday: day(),
+    sunday: day()
+  },
+  { _id: false }
+)
+
 const userSchema = createSchema({
   username: {
     type: String,
@@ -21,6 +45,14 @@ const userSchema = createSchema({
   },
   isAdmin: {
     type: Boolean
+  },
+  haveSchedule: {
+    type: Boolean,
+    default: false
+  },
+  schedule: {
+    type: scheduleSchema,
+    default: undefined
   },
   // Se incrementa para invalidar todos los tokens emitidos del usuario
   tokenVersion: {

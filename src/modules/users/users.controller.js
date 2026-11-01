@@ -2,13 +2,15 @@
  * Usuarios y autenticación. Base: /api/users
  *
  * POST   /login       -> loginUser           body: { username, password } | público, limitado a 10 intentos/15 min
- * POST   /register    -> registerUser        body: { username, password, email, fullName, isAdmin } (solo admin)
+ * POST   /register    -> registerUser        body: { username, password, email, fullName, isAdmin, haveSchedule, schedule } (solo admin)
  * GET    /assignable  -> getAssignableUsers  usuarios (username, fullName) para asignar tareas (token)
+ * GET    /me          -> getCurrentUser      perfil de quien está autenticado, con horario si lo tiene
  * GET    /            -> getUsers            query opcional: page, limit, search (solo admin)
  * GET    /:id         -> getUser             params: id (solo admin)
- * PUT    /:id         -> updateUser          params: id | body: { username, password, email, fullName, isAdmin } (solo admin)
+ * PUT    /:id         -> updateUser          params: id | body: { username, password, email, fullName, isAdmin, haveSchedule, schedule } (solo admin)
  * DELETE /:id         -> deleteUser          params: id (solo admin)
- * POST   /logout      -> logoutUser          cierra todas las sesiones del usuario (invalida sus tokens)
+ * POST   /logout      -> logoutUser          cierra las sesiones de quien está autenticado
+ * POST   /:id/logout  -> revokeUserSessions  un admin cierra las sesiones de un usuario no administrador
  * Nunca se devuelve el campo password.
  */
 import jwt from 'jsonwebtoken'
@@ -77,6 +79,20 @@ const getUsers = async (req, res) => {
   }
 }
 
+const getCurrentUser = async (req, res) => {
+  try {
+    const data = await UserModel.findById(req.userId).select(
+      '-password -tokenVersion'
+    )
+    if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
+    res.status(200).json(data)
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al cargar el perfil', error: error.message })
+  }
+}
+
 const getUser = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
@@ -133,10 +149,51 @@ const loginUser = async (req, res) => {
   }
 }
 
-const asAdminFlag = (value) => {
+const asBoolean = (value) => {
   if (value === true || value === 'true') return true
   if (value === false || value === 'false') return false
   return undefined
+}
+
+const SCHEDULE_DAYS = [
+  ['monday', 'lunes'],
+  ['tuesday', 'martes'],
+  ['wednesday', 'miércoles'],
+  ['thursday', 'jueves'],
+  ['friday', 'viernes'],
+  ['saturday', 'sábado'],
+  ['sunday', 'domingo']
+]
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
+
+const normalizeSchedule = (value) => {
+  const source = value && typeof value === 'object' ? value : {}
+  const schedule = {}
+  for (const [day, label] of SCHEDULE_DAYS) {
+    const row = source[day] || {}
+    const enabled = row.enabled === true || row.enabled === 'true'
+    const start = String(row.start || '').trim()
+    const end = String(row.end || '').trim()
+    if (enabled && (!TIME.test(start) || !TIME.test(end) || start >= end)) {
+      const error = new Error(
+        `Horario inválido el ${label}. La entrada tiene que ser antes de la salida.`
+      )
+      error.status = 400
+      throw error
+    }
+    schedule[day] = {
+      enabled,
+      start: enabled ? start : '',
+      end: enabled ? end : ''
+    }
+  }
+  return schedule
+}
+
+const sendUserError = (res, error, fallback) => {
+  res.status(error.status || 500).json({
+    message: error.status ? error.message : fallback
+  })
 }
 
 const registerUser = async (req, res) => {
@@ -155,19 +212,22 @@ const registerUser = async (req, res) => {
       return res.status(409).json({ message: 'El email ya está registrado' })
 
     const passCrypt = await bcrypt.hash(password, 10)
+    const withSchedule = asBoolean(req.body.haveSchedule) === true
     const newUser = new UserModel({
       username,
       password: passCrypt,
       email,
       fullName,
-      isAdmin: asAdminFlag(isAdmin) === true
+      isAdmin: asBoolean(isAdmin) === true,
+      haveSchedule: withSchedule,
+      ...(withSchedule
+        ? { schedule: normalizeSchedule(req.body.schedule) }
+        : {})
     })
     const saved = await newUser.save()
     res.status(201).json({ username: saved.username })
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: 'Error al registrar el usuario', error: error.message })
+    sendUserError(res, error, 'Error al registrar el usuario')
   }
 }
 
@@ -178,29 +238,35 @@ const updateUser = async (req, res) => {
   const { username, password, email, fullName, isAdmin } = req.body
   try {
     // La contraseña es opcional al editar; solo se actualizan los campos enviados.
+    const haveSchedule = asBoolean(req.body.haveSchedule)
     const update = Object.fromEntries(
       Object.entries({
         username,
         email,
         fullName,
-        isAdmin: asAdminFlag(isAdmin)
+        isAdmin: asBoolean(isAdmin),
+        haveSchedule
       }).filter(([, value]) => value !== undefined)
     )
+    const clearSchedule = haveSchedule === false
+    if (haveSchedule === true) {
+      update.schedule = normalizeSchedule(req.body.schedule)
+    }
     const revokeSessions = Boolean(password) || update.isAdmin !== undefined
     if (password) update.password = await bcrypt.hash(password, 10)
     const data = await UserModel.findOneAndUpdate(
       { _id: id },
-      revokeSessions
-        ? { $set: update, $inc: { tokenVersion: 1 } }
-        : { $set: update },
+      {
+        $set: update,
+        ...(clearSchedule ? { $unset: { schedule: '' } } : {}),
+        ...(revokeSessions ? { $inc: { tokenVersion: 1 } } : {})
+      },
       { returnDocument: 'after', runValidators: true }
     ).select('-password -tokenVersion')
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: 'Error al actualizar el usuario', error: error.message })
+    sendUserError(res, error, 'Error al actualizar el usuario')
   }
 }
 
@@ -215,6 +281,28 @@ const logoutUser = async (req, res) => {
     res
       .status(500)
       .json({ message: 'Error al cerrar sesión', error: error.message })
+  }
+}
+
+const revokeUserSessions = async (req, res) => {
+  const { id } = req.params
+  if (!isValidObjectId(id))
+    return res.status(400).json({ message: 'ID inválido' })
+  try {
+    const target = await UserModel.findById(id).select('isAdmin')
+    if (!target)
+      return res.status(404).json({ message: 'Usuario no encontrado' })
+    if (target.isAdmin === true) {
+      return res.status(403).json({
+        message: 'No se pueden cerrar las sesiones de un administrador'
+      })
+    }
+    await UserModel.updateOne({ _id: id }, { $inc: { tokenVersion: 1 } })
+    res.status(200).json({ message: 'Sesiones cerradas' })
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error al cerrar las sesiones', error: error.message })
   }
 }
 
@@ -238,9 +326,11 @@ export {
   getUser,
   getUsers,
   getAssignableUsers,
+  getCurrentUser,
   loginUser,
   registerUser,
   updateUser,
   deleteUser,
-  logoutUser
+  logoutUser,
+  revokeUserSessions
 }
