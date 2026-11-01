@@ -4,8 +4,8 @@
  *
  * GET  /me         -> getMyAttendance     turnos de quien está autenticado
  * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
- * POST /check-in   -> checkIn             body: { latitude, longitude } | solo personal, en el lugar de trabajo
- * POST /check-out  -> checkOut            cierra la entrada abierta | solo personal
+ * POST /check-in   -> checkIn             body: { latitude, longitude } | solo personal, en su día de trabajo y en el lugar
+ * POST /check-out  -> checkOut            cierra la entrada abierta | solo personal, exige una entrada
  */
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
@@ -24,6 +24,18 @@ export const mexicoCityDate = (instant = new Date()) => {
   const value = (type) => parts.find((part) => part.type === type)?.value
   return `${value('year')}-${value('month')}-${value('day')}`
 }
+
+export const mexicoCityWeekday = (instant = new Date()) =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Mexico_City',
+    weekday: 'long'
+  })
+    .format(instant)
+    .toLowerCase()
+
+const worksToday = (user, instant = new Date()) =>
+  user?.haveSchedule === true &&
+  user.schedule?.[mexicoCityWeekday(instant)]?.enabled === true
 
 const readNumber = (value) => {
   if (value === undefined || value === null || String(value).trim() === '') {
@@ -77,14 +89,15 @@ const staffOnly = (req, res) => {
 
 const getMyAttendance = async (req, res) => {
   try {
-    const [records, open] = await Promise.all([
+    const [records, open, user] = await Promise.all([
       Attendance.find({ user: req.userId })
         .sort({ checkInAt: -1 })
         .limit(30)
         .lean(),
-      Attendance.findOne({ user: req.userId, checkOutAt: null }).lean()
+      Attendance.findOne({ user: req.userId, checkOutAt: null }).lean(),
+      User.findById(req.userId).select('haveSchedule schedule').lean()
     ])
-    res.status(200).json({ records, open })
+    res.status(200).json({ records, open, workDay: worksToday(user) })
   } catch (error) {
     res.status(500).json({
       message: 'Error al cargar la asistencia',
@@ -127,6 +140,19 @@ const getAttendanceDay = async (req, res) => {
 
 const checkIn = async (req, res) => {
   if (!staffOnly(req, res)) return
+  try {
+    const user = await User.findById(req.userId)
+      .select('haveSchedule schedule')
+      .lean()
+    if (!worksToday(user)) {
+      return res.status(403).json({ message: 'Hoy no es tu día de trabajo' })
+    }
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Error al registrar la entrada',
+      error: error.message
+    })
+  }
   const latitude = readNumber(req.body?.latitude)
   const longitude = readNumber(req.body?.longitude)
   if (

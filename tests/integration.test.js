@@ -3,7 +3,28 @@ import request from 'supertest'
 import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
 import { MongoMemoryServer } from 'mongodb-memory-server'
-import { mexicoCityDate } from '../src/modules/attendance/attendance.controller.js'
+import {
+  mexicoCityDate,
+  mexicoCityWeekday
+} from '../src/modules/attendance/attendance.controller.js'
+
+const weekSchedule = (enabledDay) =>
+  Object.fromEntries(
+    [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ].map((day) => [
+      day,
+      enabledDay === undefined || enabledDay === day
+        ? { enabled: true, start: '09:00', end: '18:00' }
+        : { enabled: false, start: '', end: '' }
+    ])
+  )
 
 process.env.SECURITY_JM = 'integration-secret'
 
@@ -1077,7 +1098,9 @@ describe('Autenticación y roles', () => {
       password: 'x',
       email: 'asistente@jm.test',
       isAdmin: false,
-      tokenVersion: 0
+      tokenVersion: 0,
+      haveSchedule: true,
+      schedule: weekSchedule()
     })
     const token = jwt.sign(
       {
@@ -1099,9 +1122,37 @@ describe('Autenticación y roles', () => {
         longitude: -99.133209
       })).status
     ).toBe(403)
+    expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(400)
     expect((await asStaff('post', '/api/attendance/check-in').send({})).status).toBe(
       400
     )
+
+    const off = await mongoose.model('User').create({
+      username: 'descanso',
+      password: 'x',
+      email: 'descanso@jm.test',
+      isAdmin: false,
+      tokenVersion: 0,
+      haveSchedule: true,
+      schedule: weekSchedule(
+        mexicoCityWeekday() === 'monday' ? 'tuesday' : 'monday'
+      )
+    })
+    const offToken = jwt.sign(
+      {
+        id: String(off._id),
+        username: 'descanso',
+        isAdmin: false,
+        tv: 0
+      },
+      process.env.SECURITY_JM
+    )
+    const dayOff = await request(app)
+      .post('/api/attendance/check-in')
+      .set('Authorization', 'Bearer ' + offToken)
+      .send({ latitude: 19.432608, longitude: -99.133209 })
+    expect(dayOff.status, JSON.stringify(dayOff.body)).toBe(403)
+    expect(dayOff.body.message).toBe('Hoy no es tu día de trabajo')
 
     process.env.WORKPLACE_LATITUDE = '19.432608'
     process.env.WORKPLACE_LONGITUDE = '-99.133209'
