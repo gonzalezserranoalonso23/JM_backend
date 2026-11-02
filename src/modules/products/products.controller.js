@@ -11,6 +11,7 @@
 import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../../utils/projections.js'
 import ProductsModel from './products.model.js'
 import SuppliersModel from '../suppliers/suppliers.model.js'
+import CategoriesModel from '../categories/categories.model.js'
 import { isValidObjectId } from 'mongoose'
 import {
   accentInsensitiveRegex,
@@ -26,37 +27,100 @@ const getProducts = async (req, res) => {
 
   try {
     const search = req.query?.search?.trim()
-    let filter = {}
-    if (search) {
-      const regex = { $regex: accentInsensitiveRegex(search), $options: 'i' }
-      const suppliers = await SuppliersModel.find(
-        { suppliersName: regex },
-        { _id: 1 }
-      ).lean()
-      filter = {
-        $or: [
-          { productName: regex },
-          { supplier: { $in: suppliers.map((item) => item._id) } }
-        ]
+    const listed = () =>
+      ProductsModel.find()
+        .populate('category', CATEGORY_FIELDS)
+        .populate('supplier', SUPPLIER_FIELDS)
+        .lean()
+
+    if (!search) {
+      const query = listed()
+      if (!pagination.requested) {
+        const data = await query
+        return res.status(200).json(data)
       }
+      const [data, total] = await Promise.all([
+        query
+          .sort({ productName: 1 })
+          .skip(pagination.skip)
+          .limit(pagination.limit),
+        ProductsModel.countDocuments()
+      ])
+      return res
+        .status(200)
+        .json(createPaginatedResponse(data, total, pagination))
     }
-    const query = ProductsModel.find(filter)
-      .populate('category', CATEGORY_FIELDS)
-      .populate('supplier', SUPPLIER_FIELDS)
-      .lean()
 
-    if (!pagination.requested) {
-      const data = await query
-      return res.status(200).json(data)
+    // Una sola pasada: el nombre que coincide va primero. Si el proveedor
+    // también coincide (Sabritas vende Cheetos), esos quedan después y no
+    // empujan al producto fuera de la primera página del combo.
+    const pattern = accentInsensitiveRegex(search)
+    const regex = { $regex: pattern, $options: 'i' }
+    const suppliers = await SuppliersModel.find(
+      { suppliersName: regex },
+      { _id: 1 }
+    ).lean()
+    const supplierIds = suppliers.map((item) => item._id)
+    const textMatch = {
+      $or: [
+        { $regexMatch: { input: '$productName', regex: pattern, options: 'i' } },
+        {
+          $regexMatch: {
+            input: { $ifNull: ['$productDescription', ''] },
+            regex: pattern,
+            options: 'i'
+          }
+        }
+      ]
     }
+    const match = {
+      $or: [{ productName: regex }, { productDescription: regex }]
+    }
+    if (supplierIds.length) match.$or.push({ supplier: { $in: supplierIds } })
 
-    const [data, total] = await Promise.all([
-      query
-        .sort({ productName: 1 })
-        .skip(pagination.skip)
-        .limit(pagination.limit),
-      ProductsModel.countDocuments(filter)
+    const project = (fields) =>
+      Object.fromEntries(fields.split(' ').map((field) => [field, 1]))
+    const [result] = await ProductsModel.aggregate([
+      { $match: match },
+      { $addFields: { textHit: textMatch } },
+      { $sort: { textHit: -1, productName: 1 } },
+      {
+        $facet: {
+          meta: [{ $count: 'total' }],
+          data: [
+            { $skip: pagination.skip },
+            { $limit: pagination.limit },
+            {
+              $lookup: {
+                from: CategoriesModel.collection.name,
+                localField: 'category',
+                foreignField: '_id',
+                pipeline: [{ $project: project(CATEGORY_FIELDS) }],
+                as: 'category'
+              }
+            },
+            {
+              $lookup: {
+                from: SuppliersModel.collection.name,
+                localField: 'supplier',
+                foreignField: '_id',
+                pipeline: [{ $project: project(SUPPLIER_FIELDS) }],
+                as: 'supplier'
+              }
+            },
+            {
+              $set: {
+                category: { $ifNull: [{ $arrayElemAt: ['$category', 0] }, null] },
+                supplier: { $ifNull: [{ $arrayElemAt: ['$supplier', 0] }, null] }
+              }
+            },
+            { $unset: 'textHit' }
+          ]
+        }
+      }
     ])
+    const data = result?.data ?? []
+    const total = result?.meta?.[0]?.total ?? 0
 
     return res
       .status(200)

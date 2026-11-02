@@ -354,36 +354,25 @@ const prepareInventoryRecord = async (payload, authenticatedUserId) => {
   }
 }
 
-// Suma las salidas del carrito. Si un producto no alcanza, no se escribe nada.
-const assertExitStock = async (drafts) => {
+// Suma las salidas del carrito con el stock ya leído. Si un producto no
+// alcanza, no se escribe nada. El ajuste posterior sigue siendo atómico.
+const assertExitStock = (drafts) => {
   const demand = new Map()
   for (const draft of drafts) {
     if (!draft.isExit) continue
     const key = String(draft.product._id)
     const row = demand.get(key) || {
-      productId: draft.product._id,
       name: draft.product.productName,
-      qty: 0
+      qty: 0,
+      available: roundQty(draft.product.productStock)
     }
     row.qty = roundQty(row.qty + draft.quantity)
     demand.set(key, row)
   }
 
   for (const row of demand.values()) {
-    const product = await Product.findById(row.productId).select(
-      'productStock productName'
-    )
-    if (!product) {
-      const error = new Error(`Producto no encontrado: ${row.name}`)
-      error.status = 404
-      throw error
-    }
-    if (roundQty(product.productStock) < row.qty) {
-      throw insufficientStockError(
-        product.productStock,
-        row.qty,
-        product.productName
-      )
+    if (row.available < row.qty) {
+      throw insufficientStockError(row.available, row.qty, row.name)
     }
   }
 }
@@ -638,7 +627,7 @@ const createInventoryRecords = async (req, res) => {
       })
     }
 
-    await assertExitStock(drafts)
+    assertExitStock(drafts)
 
     const stockByProduct = new Map()
     for (const draft of drafts) {
@@ -653,24 +642,31 @@ const createInventoryRecords = async (req, res) => {
       stockByProduct.set(key, row)
     }
 
-    for (const row of stockByProduct.values()) {
-      if (row.delta === 0) continue
-      const updatedProduct = await adjustStock(row.productId, row.delta)
-      if (!updatedProduct) {
-        const current = await Product.findById(row.productId).select(
-          'productStock productName'
-        )
-        throw insufficientStockError(
-          current?.productStock,
-          Math.abs(row.delta),
-          current?.productName || row.name
-        )
-      }
-      appliedStock.push({
-        productId: row.productId,
-        stockChange: row.delta
+    const stockRows = [...stockByProduct.values()].filter((row) => row.delta !== 0)
+    const settled = await Promise.allSettled(
+      stockRows.map(async (row) => {
+        const updatedProduct = await adjustStock(row.productId, row.delta)
+        if (!updatedProduct) {
+          const current = await Product.findById(row.productId).select(
+            'productStock productName'
+          )
+          throw insufficientStockError(
+            current?.productStock,
+            Math.abs(row.delta),
+            current?.productName || row.name
+          )
+        }
+        return {
+          productId: row.productId,
+          stockChange: row.delta
+        }
       })
+    )
+    for (const item of settled) {
+      if (item.status === 'fulfilled') appliedStock.push(item.value)
     }
+    const failedStock = settled.find((item) => item.status === 'rejected')
+    if (failedStock) throw failedStock.reason
 
     const docs = drafts.map((draft) => ({
       date: draft.clientDate,
