@@ -33,5 +33,6 @@ attendanceSchema.index(
   { unique: true, partialFilterExpression: { checkOutAt: null } }
 )
 attendanceSchema.index({ date: 1, checkInAt: 1 })
+attendanceSchema.index({ user: 1, date: 1, checkInAt: -1 })
 
 export default mongoose.model('Attendance', attendanceSchema)

@@ -1185,6 +1185,18 @@ describe('Autenticación y roles', () => {
     expect(mine.status).toBe(200)
     expect(mine.body.records).toHaveLength(1)
     expect(mine.body.open).toBeNull()
+    expect(mine.body.page).toBe(1)
+    expect(mine.body.limit).toBe(10)
+    expect(mine.body.hasNextPage).toBe(false)
+
+    const filtered = await asStaff(
+      'get',
+      '/api/attendance/me?from=1999-01-01&to=1999-01-02'
+    )
+    expect(filtered.status).toBe(200)
+    expect(filtered.body.records).toHaveLength(0)
+    expect(filtered.body.open).toBeNull()
+    expect((await asStaff('get', '/api/attendance/me?page=0')).status).toBe(400)
 
     expect(
       (await asStaff('get', `/api/attendance?date=${mexicoCityDate()}`)).status

@@ -2,7 +2,7 @@
  * Asistencia del personal (no administradores).
  * Base: /api/attendance (requiere token)
  *
- * GET  /me         -> getMyAttendance     turnos de quien está autenticado
+ * GET  /me         -> getMyAttendance     turnos propios, 10 por página. query: page, from, to (YYYY-MM-DD)
  * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
  * POST /check-in   -> checkIn             body: { latitude, longitude } | quien tiene horario, en su día y en el lugar
  * POST /check-out  -> checkOut            cierra la entrada abierta | quien tiene horario, exige una entrada
@@ -85,17 +85,55 @@ const canPunch = (req, user, res) => {
   return false
 }
 
+const RECORD_PAGE_SIZE = 10
+
+const readRecordPage = (query = {}) => {
+  const page = Number(query.page ?? 1)
+  if (!Number.isInteger(page) || page < 1) {
+    return { error: 'La página debe ser un entero mayor que cero' }
+  }
+  const from = String(query.from || '').trim()
+  const to = String(query.to || '').trim()
+  if ((from && !CLIENT_DATE.test(from)) || (to && !CLIENT_DATE.test(to))) {
+    return { error: 'La fecha debe tener formato YYYY-MM-DD' }
+  }
+  if (from && to && from > to) {
+    return { error: 'La fecha inicial no puede ser posterior a la final' }
+  }
+  return { page, from, to }
+}
+
 const getMyAttendance = async (req, res) => {
+  const paging = readRecordPage(req.query)
+  if (paging.error) {
+    return res.status(400).json({ message: paging.error })
+  }
+  const filter = { user: req.userId }
+  if (paging.from || paging.to) {
+    filter.date = {}
+    if (paging.from) filter.date.$gte = paging.from
+    if (paging.to) filter.date.$lte = paging.to
+  }
   try {
-    const [records, open, user] = await Promise.all([
-      Attendance.find({ user: req.userId })
+    const [records, total, open, user] = await Promise.all([
+      Attendance.find(filter)
         .sort({ checkInAt: -1 })
-        .limit(30)
+        .skip((paging.page - 1) * RECORD_PAGE_SIZE)
+        .limit(RECORD_PAGE_SIZE)
         .lean(),
+      Attendance.countDocuments(filter),
       Attendance.findOne({ user: req.userId, checkOutAt: null }).lean(),
       User.findById(req.userId).select('haveSchedule schedule').lean()
     ])
-    res.status(200).json({ records, open, workDay: worksToday(user) })
+    res.status(200).json({
+      records,
+      open,
+      workDay: worksToday(user),
+      page: paging.page,
+      limit: RECORD_PAGE_SIZE,
+      total,
+      hasNextPage: paging.page * RECORD_PAGE_SIZE < total
+    })
   } catch (error) {
     res.status(500).json({
       message: 'Error al cargar la asistencia',
