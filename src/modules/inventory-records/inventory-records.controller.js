@@ -509,18 +509,10 @@ const undoStockChanges = async (stockChanges) => {
   return failed
 }
 
-const populateRecords = (ids) =>
-  InventoryRecord.find({ _id: { $in: ids } })
-    .populate('typeInventory', TYPE_INVENTORY_FIELDS)
-    .populate('paymentType', PAYMENT_TYPE_FIELDS)
-    .populate('productName', PRODUCT_NAME_FIELDS)
-    .populate('category', CATEGORY_FIELDS)
-    .select('-User')
-    .lean()
-
 // Recibe un carrito. Valida todo el stock de salidas antes de escribir.
-// Ajusta stock por producto (una vez) e inserta los renglones en lote para
-// no pasarse del timeout del cliente (~25s) en capturas grandes.
+// Ajusta stock por producto (una vez) e inserta los renglones en lote.
+// Responde con los ids en cuanto quedan guardados: la lista se vuelve a
+// cargar aparte y el cliente no se queda esperando el populate.
 const createInventoryRecords = async (req, res) => {
   const records = Array.isArray(req.body) ? req.body : req.body.records
 
@@ -695,10 +687,7 @@ const createInventoryRecords = async (req, res) => {
 
     const inserted = await InventoryRecord.insertMany(docs, { ordered: true })
     insertedIds = inserted.map((doc) => doc._id)
-
-    const populated = await populateRecords(insertedIds)
-    const byId = new Map(populated.map((doc) => [String(doc._id), doc]))
-    res.status(201).json(insertedIds.map((id) => byId.get(String(id))))
+    res.status(201).json(insertedIds)
   } catch (rawError) {
     const error = toHttpError(rawError)
     let rollbackFailed = false
