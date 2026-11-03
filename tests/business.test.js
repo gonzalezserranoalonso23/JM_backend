@@ -91,6 +91,7 @@ import {
   getInventoryStats
 } from '../src/modules/inventory-records/inventory-records.controller.js'
 import { loginUser } from '../src/modules/users/users.controller.js'
+import { getPromotionProducts } from '../src/modules/products/products.controller.js'
 
 const ENTRY_TYPE_ID = '507f1f77bcf86cd799439014'
 const ISSUE_TYPE_ID = '507f1f77bcf86cd799439015'
@@ -115,6 +116,41 @@ const mockChainedPopulate = (record) => {
 describe('Business logic tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('lista los productos con margen de 30% o más', async () => {
+    Product.aggregate.mockResolvedValue([
+      {
+        meta: [{ total: 1 }],
+        data: [
+          {
+            productName: 'Arroz',
+            purchasePrice: 10,
+            productPrice: 20,
+            margin: 50
+          }
+        ]
+      }
+    ])
+    const res = mockRes()
+
+    await getPromotionProducts({ query: { page: '1', limit: '20' } }, res)
+
+    const pipeline = Product.aggregate.mock.calls.at(-1)[0]
+    const calculated = pipeline[0].$match.$expr.$gte[0].$round[0].$multiply
+    expect(calculated[0].$divide).toEqual([
+      { $subtract: ['$productPrice', '$purchasePrice'] },
+      '$productPrice'
+    ])
+    expect(calculated[1]).toBe(100)
+    expect(pipeline[0].$match.$expr.$gte[1]).toBe(30)
+    expect(res.status).toHaveBeenCalledWith(200)
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        total: 1,
+        data: [expect.objectContaining({ margin: 50 })]
+      })
+    )
   })
 
   it('logs in a valid user and returns a JWT', async () => {

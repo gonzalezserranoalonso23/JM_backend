@@ -5,7 +5,7 @@
  * GET  /me         -> getMyAttendance     turnos propios, 10 por página. query: page, from, to (YYYY-MM-DD)
  * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
  * POST /check-in   -> checkIn             body: { latitude, longitude } | quien tiene horario, en su día y en el lugar
- * POST /check-out  -> checkOut            cierra la entrada abierta | quien tiene horario, exige una entrada
+ * POST /check-out  -> checkOut            cierra la entrada abierta | quien tiene horario, en el lugar
  */
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
@@ -75,6 +75,41 @@ const workplace = () => {
     return null
   }
   return { latitude, longitude, radius }
+}
+
+const requireWorkplace = (req, res, action) => {
+  const latitude = readNumber(req.body?.latitude)
+  const longitude = readNumber(req.body?.longitude)
+  if (
+    latitude === null ||
+    longitude === null ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    res.status(400).json({
+      message: `Se necesita tu ubicación para registrar la ${action}`
+    })
+    return null
+  }
+  const place = workplace()
+  if (!place) {
+    res.status(503).json({
+      message: 'El lugar de trabajo no está configurado'
+    })
+    return null
+  }
+  if (
+    distanceMeters(latitude, longitude, place.latitude, place.longitude) >
+    place.radius
+  ) {
+    res.status(403).json({
+      message: `Tienes que estar en el lugar de trabajo para registrar la ${action}`
+    })
+    return null
+  }
+  return { latitude, longitude }
 }
 
 const canPunch = (req, user, res) => {
@@ -192,34 +227,8 @@ const checkIn = async (req, res) => {
       error: error.message
     })
   }
-  const latitude = readNumber(req.body?.latitude)
-  const longitude = readNumber(req.body?.longitude)
-  if (
-    latitude === null ||
-    longitude === null ||
-    latitude < -90 ||
-    latitude > 90 ||
-    longitude < -180 ||
-    longitude > 180
-  ) {
-    return res.status(400).json({
-      message: 'Se necesita tu ubicación para registrar la entrada'
-    })
-  }
-  const place = workplace()
-  if (!place) {
-    return res.status(503).json({
-      message: 'El lugar de trabajo no está configurado'
-    })
-  }
-  if (
-    distanceMeters(latitude, longitude, place.latitude, place.longitude) >
-    place.radius
-  ) {
-    return res.status(403).json({
-      message: 'Tienes que estar en el lugar de trabajo para registrar la entrada'
-    })
-  }
+  const position = requireWorkplace(req, res, 'entrada')
+  if (!position) return
   try {
     const open = await Attendance.findOne({
       user: req.userId,
@@ -234,8 +243,8 @@ const checkIn = async (req, res) => {
       user: req.userId,
       date: mexicoCityDate(),
       checkInAt: new Date(),
-      latitude,
-      longitude,
+      latitude: position.latitude,
+      longitude: position.longitude,
       checkOutAt: null
     })
     res.status(201).json(record)
@@ -256,6 +265,16 @@ const checkOut = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('haveSchedule').lean()
     if (!canPunch(req, user, res)) return
+    const open = await Attendance.findOne({
+      user: req.userId,
+      checkOutAt: null
+    }).lean()
+    if (!open) {
+      return res.status(400).json({
+        message: 'No tienes una entrada abierta'
+      })
+    }
+    if (!requireWorkplace(req, res, 'salida')) return
     const record = await Attendance.findOneAndUpdate(
       { user: req.userId, checkOutAt: null },
       { $set: { checkOutAt: new Date() } },

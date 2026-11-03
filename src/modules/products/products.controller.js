@@ -1,8 +1,9 @@
 /**
  * Productos. Base: /api/products (requiere token)
  *
- * GET    /     -> getProducts    query opcional: page, limit, search (nombre o proveedor)
- * GET    /:id  -> getProduct     params: id
+ * GET    /             -> getProducts            query opcional: page, limit, search (nombre o proveedor)
+ * GET    /promotions   -> getPromotionProducts  query: page, limit, search, category
+ * GET    /:id          -> getProduct             params: id
  * POST   /     -> createProduct  body: { productName*, productDescription, purchasePrice, productPrice,
  *                                        minimumProductStock, productStock, supplier, category, isActive }
  * PUT    /:id  -> updateProduct  params: id | body: mismos campos que POST
@@ -12,7 +13,7 @@ import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../../utils/projections.js'
 import ProductsModel from './products.model.js'
 import SuppliersModel from '../suppliers/suppliers.model.js'
 import CategoriesModel from '../categories/categories.model.js'
-import { isValidObjectId } from 'mongoose'
+import mongoose, { isValidObjectId } from 'mongoose'
 import {
   accentInsensitiveRegex,
   createPaginatedResponse,
@@ -129,6 +130,100 @@ const getProducts = async (req, res) => {
     res
       .status(500)
       .json({ message: 'Error al cargar los productos', error: error.message })
+  }
+}
+
+const MIN_MARGIN = 30
+
+const margin = {
+  $round: [
+    {
+      $multiply: [
+        {
+          $divide: [
+            { $subtract: ['$productPrice', '$purchasePrice'] },
+            '$productPrice'
+          ]
+        },
+        100
+      ]
+    },
+    2
+  ]
+}
+
+const getPromotionProducts = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
+  const match = {
+    isActive: { $ne: false },
+    productPrice: { $gt: 0 },
+    $expr: { $gte: [margin, MIN_MARGIN] }
+  }
+  const search =
+    typeof req.query?.search === 'string' ? req.query.search.trim() : ''
+  if (search) {
+    const pattern = accentInsensitiveRegex(search)
+    const regex = { $regex: pattern, $options: 'i' }
+    match.$or = [{ productName: regex }, { productDescription: regex }]
+  }
+  const { category } = req.query
+  if (category) {
+    if (!isValidObjectId(category)) {
+      return res.status(400).json({ message: 'Categoría inválida' })
+    }
+    match.category = new mongoose.Types.ObjectId(category)
+  }
+
+  try {
+    const project = (fields) =>
+      Object.fromEntries(fields.split(' ').map((field) => [field, 1]))
+    const pageStages = pagination.requested
+      ? [{ $skip: pagination.skip }, { $limit: pagination.limit }]
+      : []
+    const [result] = await ProductsModel.aggregate([
+      { $match: match },
+      { $addFields: { margin } },
+      { $sort: { productName: 1 } },
+      {
+        $facet: {
+          meta: [{ $count: 'total' }],
+          data: [
+            ...pageStages,
+            {
+              $lookup: {
+                from: CategoriesModel.collection.name,
+                localField: 'category',
+                foreignField: '_id',
+                pipeline: [{ $project: project(CATEGORY_FIELDS) }],
+                as: 'category'
+              }
+            },
+            {
+              $set: {
+                category: { $ifNull: [{ $arrayElemAt: ['$category', 0] }, null] }
+              }
+            }
+          ]
+        }
+      }
+    ])
+    const data = result?.data ?? []
+    const total = result?.meta?.[0]?.total ?? 0
+    if (!pagination.requested) {
+      return res.status(200).json(data)
+    }
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error al cargar los productos en promoción',
+      error: error.message
+    })
   }
 }
 
@@ -263,4 +358,11 @@ const deleteProduct = async (req, res) => {
   }
 }
 
-export { getProduct, getProducts, createProduct, updateProduct, deleteProduct }
+export {
+  getProduct,
+  getProducts,
+  getPromotionProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct
+}

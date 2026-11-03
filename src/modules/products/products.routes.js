@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   getProduct,
   getProducts,
+  getPromotionProducts,
   createProduct,
   updateProduct,
   deleteProduct
@@ -11,6 +12,7 @@ import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
 const router = Router()
 
 router.get('/', verifyToken, getProducts)
+router.get('/promotions', verifyToken, getPromotionProducts)
 router.get('/:id', verifyToken, getProduct)
 router.post('/', verifyToken, requireAdmin, createProduct)
 router.put('/:id', verifyToken, requireAdmin, updateProduct)

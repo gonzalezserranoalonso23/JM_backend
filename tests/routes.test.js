@@ -44,6 +44,7 @@ describe('Route registration smoke tests', () => {
     expect(getRoutes(ProductsRouter)).toEqual(
       expect.arrayContaining([
         { method: 'GET', path: '/' },
+        { method: 'GET', path: '/promotions' },
         { method: 'GET', path: '/:id' },
         { method: 'POST', path: '/' },
         { method: 'PUT', path: '/:id' },
