@@ -67,11 +67,12 @@ beforeAll(async () => {
   mongod = await MongoMemoryServer.create()
   await mongoose.connect(mongod.getUri(), { dbName: 'jm_test' })
   app = (await import('../src/app.js')).default
+  const manager = await mongoose.model('Role').create({ name: 'Manager' })
   const user = await mongoose.model('User').create({
     username: 'admin',
     password: 'x',
     email: 'admin@jm.test',
-    isAdmin: true
+    role: manager._id
   })
   userId = String(user._id)
   const [entryType, issueType, cashPaymentType, cardPaymentType] =
@@ -1078,18 +1079,20 @@ describe('Autenticación y roles', () => {
     await api('delete', `/api/categories/${created.body._id}`)
   })
 
-  it('login incluye isAdmin en el JWT', async () => {
+  it('login incluye el rol en el JWT', async () => {
+    const manager = await mongoose.model('Role').findOne({ name: 'Manager' })
     await mongoose.model('User').create({
       username: 'jwtadmin',
       password: await (await import('bcryptjs')).default.hash('pw12345', 4),
       email: 'jwt@jm.test',
-      isAdmin: true
+      role: manager._id
     })
     const res = await request(app)
       .post('/api/users/login')
       .send({ username: 'jwtadmin', password: 'pw12345' })
     expect(res.status).toBe(200)
-    expect(jwt.decode(res.body.token).isAdmin).toBe(true)
+    expect(res.body.role).toBe('Manager')
+    expect(jwt.decode(res.body.token).role).toBe('Manager')
   })
 
   it('el personal registra entrada y salida; un admin no checa', async () => {
@@ -1210,11 +1213,12 @@ describe('Autenticación y roles', () => {
       true
     )
 
+    const manager = await mongoose.model('Role').findOne({ name: 'Manager' })
     const boss = await mongoose.model('User').create({
       username: 'jefe',
       password: 'x',
       email: 'jefe@jm.test',
-      isAdmin: true,
+      role: manager._id,
       tokenVersion: 0,
       haveSchedule: true,
       schedule: weekSchedule()

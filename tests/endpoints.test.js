@@ -76,7 +76,7 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
 
       static findAuthState = vi
         .fn()
-        .mockResolvedValue({ tokenVersion: 0, isAdmin: true })
+        .mockResolvedValue({ tokenVersion: 0, role: { name: 'Manager' } })
 
       static deleteMany = vi.fn().mockResolvedValue({ deletedCount: 1 })
 

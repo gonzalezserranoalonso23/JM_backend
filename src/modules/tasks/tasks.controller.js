@@ -16,6 +16,7 @@ import Task from './tasks.model.js'
 import User from '../users/users.model.js'
 import { isValidObjectId } from 'mongoose'
 import { sendPushToUser } from '../push-notifications/push.service.js'
+import { grantsFullAccess } from '../roles/roles.model.js'
 
 const asId = (value) => {
   if (!value) return ''
@@ -24,7 +25,7 @@ const asId = (value) => {
 }
 
 const canManageTask = (task, req) => {
-  if (req.isAdmin) return true
+  if (grantsFullAccess(req.role)) return true
   const userId = asId(req.userId || req.user?.id)
   if (!userId) return false
   return asId(task.createdBy) === userId || asId(task.assignedTo) === userId
@@ -35,7 +36,7 @@ const notifyAssignee = (userId, task) => {
   if (!assigneeId || !task) return
   void sendPushToUser(assigneeId, {
     title: 'Pendiente asignado',
-    body: task.title || 'Tienes una tarea pendiente',
+    body: task.title || 'Tienes un pendiente',
     url: '/todolist',
     tag: String(task._id || 'task')
   }).catch(() => {})
@@ -74,7 +75,7 @@ export const getTask = async (req, res) => {
     const task = await withUsers(Task.findById(req.params.id)).lean()
 
     if (!task) {
-      return res.status(404).json({ message: 'Tarea no encontrada' })
+      return res.status(404).json({ message: 'Pendiente no encontrado' })
     }
 
     res.status(200).json(task)
@@ -132,7 +133,7 @@ export const updateTask = async (req, res) => {
 
     const task = await Task.findById(id)
     if (!task) {
-      return res.status(404).json({ message: 'Tarea no encontrada' })
+      return res.status(404).json({ message: 'Pendiente no encontrado' })
     }
 
     if (!canManageTask(task, req)) {
@@ -192,7 +193,7 @@ export const deleteTask = async (req, res) => {
     const task = await Task.findById(id)
 
     if (!task) {
-      return res.status(404).json({ message: 'Tarea no encontrada' })
+      return res.status(404).json({ message: 'Pendiente no encontrado' })
     }
 
     if (!canManageTask(task, req)) {
@@ -203,7 +204,7 @@ export const deleteTask = async (req, res) => {
 
     await Task.findByIdAndDelete(id)
 
-    res.status(200).json({ message: 'Tarea eliminada exitosamente' })
+    res.status(200).json({ message: 'Pendiente eliminado' })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import User from '../modules/users/users.model.js'
+import { grantsFullAccess } from '../modules/roles/roles.model.js'
 
 const unauthorized = (res) =>
   res.status(401).json({ message: 'Token inválido o expirado' })
@@ -24,7 +25,7 @@ export const verifyToken = (req, res, next) => {
         }
         req.user = decoded
         req.userId = decoded.id
-        req.isAdmin = user.isAdmin === true
+        req.role = user.role?.name || ''
         next()
       } catch {
         res.status(500).json({ message: 'Error al validar la sesión' })
@@ -34,7 +35,7 @@ export const verifyToken = (req, res, next) => {
 }
 
 export const requireAdmin = (req, res, next) => {
-  if (!req.isAdmin) {
+  if (!grantsFullAccess(req.role)) {
     return res.status(403).json({ message: 'Acceso solo para administradores' })
   }
   next()

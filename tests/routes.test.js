@@ -13,6 +13,7 @@ import UsersRouter from '../src/modules/users/users.routes.js'
 import PushNotificationsRouter from '../src/modules/push-notifications/push-notifications.routes.js'
 import DenominationsRouter from '../src/modules/denominations/denominations.routes.js'
 import AttendanceRouter from '../src/modules/attendance/attendance.routes.js'
+import RolesRouter from '../src/modules/roles/roles.routes.js'
 
 const getRoutes = (router) =>
   router.stack
@@ -161,6 +162,13 @@ describe('Route registration smoke tests', () => {
         { method: 'PUT', path: '/' }
       ])
     )
+  })
+
+  it('declares all role routes', () => {
+    expect(getRoutes(RolesRouter)).toEqual([
+      { method: 'GET', path: '/' },
+      { method: 'GET', path: '/:id' }
+    ])
   })
 
   it('declares all attendance routes', () => {

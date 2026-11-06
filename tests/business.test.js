@@ -81,7 +81,6 @@ import Product from '../src/modules/products/products.model.js'
 import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
 import DailyInformation from '../src/modules/daily-information/daily-information.model.js'
 import TypeInventory from '../src/modules/type-inventory/type-inventory.model.js'
-import PaymentType from '../src/modules/payment-types/payment-types.model.js'
 import UserModel from '../src/modules/users/users.model.js'
 import {
   createInventoryRecord,
@@ -179,7 +178,7 @@ describe('Business logic tests', () => {
       {
         id: '507f1f77bcf86cd799439013',
         username: 'admin',
-        isAdmin: true,
+        role: '',
         tv: 0
       },
       process.env.SECURITY_JM,
@@ -189,7 +188,7 @@ describe('Business logic tests', () => {
       expect.objectContaining({
         token: 'generated-token',
         username: 'admin',
-        isAdmin: true
+        role: ''
       })
     )
   })
@@ -389,16 +388,6 @@ describe('Business logic tests', () => {
       { _id: cardId, total: 49.5 },
       { _id: '507f1f77bcf86cd799439023', total: 10 }
     ])
-    PaymentType.find.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        lean: vi.fn().mockResolvedValue([
-          { _id: cashId, paymentType: 'Efectivo' },
-          { _id: cardId, paymentType: 'Tarjeta' },
-          { _id: '507f1f77bcf86cd799439023', paymentType: 'Transferencia' }
-        ])
-      })
-    })
-
     await getLiveInformation({ query: { date: '2026-10-23' } }, res)
 
     expect(InventoryRecordModel.aggregate).toHaveBeenCalledWith([
@@ -413,9 +402,12 @@ describe('Business logic tests', () => {
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith({
       date: '2026-10-23',
-      cashSales: 150.5,
-      cardSales: 49.5,
-      totalSales: 200
+      payments: [
+        { paymentType: cashId, total: 150.5 },
+        { paymentType: cardId, total: 49.5 },
+        { paymentType: '507f1f77bcf86cd799439023', total: 10 }
+      ],
+      totalSales: 210
     })
   })
 

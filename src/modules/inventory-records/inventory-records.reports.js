@@ -1,7 +1,6 @@
 import InventoryRecord from './inventory-records.model.js'
 import Product from '../products/products.model.js'
 import TypeInventory from '../type-inventory/type-inventory.model.js'
-import PaymentType from '../payment-types/payment-types.model.js'
 import { isValidObjectId, Types } from 'mongoose'
 import {
   CATEGORY_FIELDS,
@@ -20,16 +19,6 @@ import {
 import { isIssueType } from './inventory-records.shared.js'
 
 const DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/
-
-const paymentBucket = (name) => {
-  const label = String(name || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-  if (label.includes('efectivo')) return 'cash'
-  if (label.includes('tarjeta')) return 'card'
-  return ''
-}
 
 const toDouble = (input) => ({
   $convert: { input, to: 'double', onError: null, onNull: null }
@@ -135,33 +124,19 @@ const getLiveInformation = async (req, res) => {
         ])
       : []
 
-    const paymentIds = grouped.map((row) => row._id).filter(Boolean)
-    const payments = paymentIds.length
-      ? await PaymentType.find({ _id: { $in: paymentIds } })
-          .select('paymentType')
-          .lean()
-      : []
-    const names = new Map(
-      payments.map((payment) => [String(payment._id), payment.paymentType])
-    )
-
-    let cashSales = 0
-    let cardSales = 0
+    const payments = []
+    let totalSales = 0
     for (const row of grouped) {
-      const amount = Number(row.total) || 0
-      const bucket = paymentBucket(names.get(String(row._id)))
-      if (bucket === 'cash') cashSales += amount
-      if (bucket === 'card') cardSales += amount
+      const total = roundMoney(Number(row.total) || 0)
+      totalSales += total
+      if (!row._id) continue
+      payments.push({ paymentType: row._id, total })
     }
-
-    cashSales = roundMoney(cashSales)
-    cardSales = roundMoney(cardSales)
 
     return res.status(200).json({
       date,
-      cashSales,
-      cardSales,
-      totalSales: roundMoney(cashSales + cardSales)
+      payments,
+      totalSales: roundMoney(totalSales)
     })
   } catch (error) {
     return res.status(500).json({

@@ -37,7 +37,7 @@ export const subscribePush = async (req, res) => {
         keys: { p256dh: keys.p256dh, auth: keys.auth },
         expirationTime: expirationTime || null
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     )
 
     return res.status(201).json({

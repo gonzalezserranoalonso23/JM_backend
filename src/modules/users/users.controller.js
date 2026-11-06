@@ -2,20 +2,21 @@
  * Usuarios y autenticación. Base: /api/users
  *
  * POST   /login       -> loginUser           body: { username, password } | público, limitado a 10 intentos/15 min
- * POST   /register    -> registerUser        body: { username, password, email, fullName, isAdmin, haveSchedule, schedule } (solo admin)
+ * POST   /register    -> registerUser        body: { username, password, email, fullName, role, haveSchedule, schedule } (solo admin)
  * GET    /assignable  -> getAssignableUsers  usuarios (username, fullName) para asignar tareas (token)
  * GET    /me          -> getCurrentUser      perfil de quien está autenticado, con horario si lo tiene
  * GET    /            -> getUsers            query opcional: page, limit, search (solo admin)
  * GET    /:id         -> getUser             params: id (solo admin)
- * PUT    /:id         -> updateUser          params: id | body: { username, password, email, fullName, isAdmin, haveSchedule, schedule } (solo admin)
+ * PUT    /:id         -> updateUser          params: id | body: { username, password, email, fullName, role, haveSchedule, schedule } (solo admin)
  * DELETE /:id         -> deleteUser          params: id (solo admin)
  * POST   /logout      -> logoutUser          cierra las sesiones de quien está autenticado
- * POST   /:id/logout  -> revokeUserSessions  un admin cierra las sesiones de un usuario no administrador
+ * POST   /:id/logout  -> revokeUserSessions  Manager o Supervisor cierra las sesiones de Staff o User
  * Nunca se devuelve el campo password.
  */
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import UserModel from './users.model.js'
+import RoleModel, { grantsFullAccess } from '../roles/roles.model.js'
 import { isValidObjectId } from 'mongoose'
 import dotenv from 'dotenv'
 import {
@@ -57,7 +58,9 @@ const getUsers = async (req, res) => {
           }))
         }
       : {}
-    const query = UserModel.find(filter).select('-password -tokenVersion')
+    const query = withRole(
+      UserModel.find(filter).select('-password -tokenVersion')
+    )
 
     if (!pagination.requested) {
       const data = await query
@@ -81,8 +84,8 @@ const getUsers = async (req, res) => {
 
 const getCurrentUser = async (req, res) => {
   try {
-    const data = await UserModel.findById(req.userId).select(
-      '-password -tokenVersion'
+    const data = await withRole(
+      UserModel.findById(req.userId).select('-password -tokenVersion')
     )
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
@@ -98,7 +101,9 @@ const getUser = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
-    const data = await UserModel.findById(id).select('-password -tokenVersion')
+    const data = await withRole(
+      UserModel.findById(id).select('-password -tokenVersion')
+    )
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
@@ -117,7 +122,13 @@ const loginUser = async (req, res) => {
   if (typeof username !== 'string' || typeof password !== 'string')
     return res.status(400).json({ message: 'Datos inválidos' })
   try {
-    const existUser = await UserModel.findOne({ username })
+    const loginQuery = UserModel.findOne({ username })
+    let existUser = loginQuery
+    if (typeof loginQuery?.populate === 'function') {
+      existUser = await loginQuery.populate('role', 'name')
+    } else {
+      existUser = await loginQuery
+    }
     if (!existUser)
       return res
         .status(401)
@@ -129,24 +140,45 @@ const loginUser = async (req, res) => {
         .status(401)
         .json({ message: 'Usuario y/o contraseña no válida' })
 
+    const roleName = existUser.role?.name || ''
     const token = jwt.sign(
       {
         id: existUser._id,
         username: existUser.username,
-        isAdmin: existUser.isAdmin === true,
+        role: roleName,
         tv: existUser.tokenVersion ?? 0
       },
       process.env.SECURITY_JM,
       { expiresIn: TOKEN_TTL, algorithm: 'HS256' }
     )
-    res
-      .status(200)
-      .json({ token, username: existUser.username, isAdmin: existUser.isAdmin })
+    res.status(200).json({
+      token,
+      username: existUser.username,
+      role: roleName
+    })
   } catch (error) {
     res
       .status(500)
       .json({ message: 'Error al iniciar sesión', error: error.message })
   }
+}
+
+const withRole = (query) => query.populate('role', 'name')
+
+const readRole = async (value) => {
+  if (value === undefined || value === null || value === '') return undefined
+  if (!isValidObjectId(value)) {
+    const error = new Error('El rol no es válido')
+    error.status = 400
+    throw error
+  }
+  const role = await RoleModel.findById(value).select('_id name')
+  if (!role) {
+    const error = new Error('El rol no existe')
+    error.status = 400
+    throw error
+  }
+  return { id: role._id, name: role.name }
 }
 
 const asBoolean = (value) => {
@@ -197,7 +229,7 @@ const sendUserError = (res, error, fallback) => {
 }
 
 const registerUser = async (req, res) => {
-  const { username, password, email, fullName, isAdmin } = req.body
+  const { username, password, email, fullName } = req.body
   if (!username || !password || !email)
     return res
       .status(400)
@@ -213,12 +245,13 @@ const registerUser = async (req, res) => {
 
     const passCrypt = await bcrypt.hash(password, 10)
     const withSchedule = asBoolean(req.body.haveSchedule) === true
+    const role = await readRole(req.body.role)
     const newUser = new UserModel({
       username,
       password: passCrypt,
       email,
       fullName,
-      isAdmin: asBoolean(isAdmin) === true,
+      ...(role ? { role: role.id } : {}),
       haveSchedule: withSchedule,
       ...(withSchedule
         ? { schedule: normalizeSchedule(req.body.schedule) }
@@ -235,16 +268,17 @@ const updateUser = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
-  const { username, password, email, fullName, isAdmin } = req.body
+  const { username, password, email, fullName } = req.body
   try {
     // La contraseña es opcional al editar; solo se actualizan los campos enviados.
     const haveSchedule = asBoolean(req.body.haveSchedule)
+    const role = await readRole(req.body.role)
     const update = Object.fromEntries(
       Object.entries({
         username,
         email,
         fullName,
-        isAdmin: asBoolean(isAdmin),
+        role: role ? role.id : undefined,
         haveSchedule
       }).filter(([, value]) => value !== undefined)
     )
@@ -252,7 +286,7 @@ const updateUser = async (req, res) => {
     if (haveSchedule === true) {
       update.schedule = normalizeSchedule(req.body.schedule)
     }
-    const revokeSessions = Boolean(password) || update.isAdmin !== undefined
+    const revokeSessions = Boolean(password) || Boolean(role)
     if (password) update.password = await bcrypt.hash(password, 10)
     const data = await UserModel.findOneAndUpdate(
       { _id: id },
@@ -262,7 +296,9 @@ const updateUser = async (req, res) => {
         ...(revokeSessions ? { $inc: { tokenVersion: 1 } } : {})
       },
       { returnDocument: 'after', runValidators: true }
-    ).select('-password -tokenVersion')
+    )
+      .select('-password -tokenVersion')
+      .populate('role', 'name')
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
@@ -289,10 +325,10 @@ const revokeUserSessions = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
-    const target = await UserModel.findById(id).select('isAdmin')
+    const target = await UserModel.findById(id).populate('role', 'name')
     if (!target)
       return res.status(404).json({ message: 'Usuario no encontrado' })
-    if (target.isAdmin === true) {
+    if (grantsFullAccess(target.role?.name)) {
       return res.status(403).json({
         message: 'No se pueden cerrar las sesiones de un administrador'
       })

@@ -423,7 +423,8 @@ describe('Controller smoke tests', () => {
 
   it('lists users', async () => {
     const query = {
-      select: vi.fn().mockResolvedValue([{ _id: 'u-1', username: 'admin' }])
+      select: vi.fn().mockReturnThis(),
+      populate: vi.fn().mockResolvedValue([{ _id: 'u-1', username: 'admin' }])
     }
     UsersModel.find.mockReturnValue(query)
     const res = mockRes()

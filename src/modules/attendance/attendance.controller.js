@@ -9,6 +9,7 @@
  */
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
+import { grantsFullAccess } from '../roles/roles.model.js'
 
 const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
 const USER_FIELDS = 'username fullName'
@@ -113,7 +114,7 @@ const requireWorkplace = (req, res, action) => {
 }
 
 const canPunch = (req, user, res) => {
-  if (!req.isAdmin || user?.haveSchedule === true) return true
+  if (!grantsFullAccess(req.role) || user?.haveSchedule === true) return true
   res.status(403).json({
     message: 'La asistencia es para el personal, no para administradores'
   })
@@ -178,7 +179,7 @@ const getMyAttendance = async (req, res) => {
 }
 
 const getAttendanceDay = async (req, res) => {
-  if (!req.isAdmin) {
+  if (!grantsFullAccess(req.role)) {
     return res
       .status(403)
       .json({ message: 'Acceso solo para administradores' })
@@ -191,9 +192,7 @@ const getAttendanceDay = async (req, res) => {
   }
   try {
     const [staff, records] = await Promise.all([
-      User.find({
-        $or: [{ isAdmin: { $ne: true } }, { haveSchedule: true }]
-      })
+      User.find({ haveSchedule: true })
         .select(USER_FIELDS)
         .sort({ username: 1 })
         .lean(),

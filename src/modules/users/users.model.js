@@ -43,8 +43,9 @@ const userSchema = createSchema({
   fullName: {
     type: String
   },
-  isAdmin: {
-    type: Boolean
+  role: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Role'
   },
   haveSchedule: {
     type: Boolean,
@@ -62,7 +63,19 @@ const userSchema = createSchema({
 })
 
 userSchema.statics.findAuthState = function (id) {
-  return this.findById(id).select('tokenVersion isAdmin').lean()
+  return this.findById(id)
+    .select('tokenVersion role')
+    .populate('role', 'name')
+    .lean()
 }
 
-export default mongoose.model('User', userSchema)
+const UserModel = mongoose.model('User', userSchema)
+
+// El acceso sale del rol. Los documentos viejos pueden traer isAdmin guardado.
+export const dropLegacyAdminFlag = () =>
+  UserModel.collection.updateMany(
+    { isAdmin: { $exists: true } },
+    { $unset: { isAdmin: '' } }
+  )
+
+export default UserModel
