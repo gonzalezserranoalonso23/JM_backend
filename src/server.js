@@ -1,5 +1,6 @@
 import app from './app.js'
 import connection from './database/connection.js'
+import { startShiftReminders } from './modules/attendance/shiftReminder.js'
 
 if (!process.env.SECURITY_JM) {
   console.error('SECURITY_JM debe estar definido')
@@ -13,6 +14,7 @@ connection()
         `${app.get('title')} esta corriendo por el puerto: ${app.get('port')}`
       )
     )
+    startShiftReminders()
   })
   .catch((error) => {
     console.error(`No se pudo conectar a la base de datos: ${error.message}`)

@@ -4,12 +4,13 @@
  *
  * GET  /me         -> getMyAttendance     turnos propios, 10 por página. query: page, from, to (YYYY-MM-DD)
  * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
- * POST /check-in   -> checkIn             body: { latitude, longitude } | quien tiene horario, en su día y en el lugar
- * POST /check-out  -> checkOut            cierra la entrada abierta | quien tiene horario, en el lugar
+ * POST /check-in   -> checkIn             body: { latitude, longitude, cashReceived } | quien tiene horario, en su día y en el lugar
+ * POST /check-out  -> checkOut            body: { latitude, longitude, cashCut } | cierra la entrada abierta
  */
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
 import { grantsFullAccess } from '../roles/roles.model.js'
+import { roundMoney } from '../../utils/money.js'
 
 const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
 const USER_FIELDS = 'username fullName'
@@ -37,6 +38,15 @@ export const mexicoCityWeekday = (instant = new Date()) =>
 const worksToday = (user, instant = new Date()) =>
   user?.haveSchedule === true &&
   user.schedule?.[mexicoCityWeekday(instant)]?.enabled === true
+
+const readCash = (value) => {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return null
+  }
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < 0) return null
+  return roundMoney(number)
+}
 
 const readNumber = (value) => {
   if (value === undefined || value === null || String(value).trim() === '') {
@@ -238,13 +248,20 @@ const checkIn = async (req, res) => {
         message: 'Ya tienes una entrada abierta. Registra la salida primero.'
       })
     }
+    const cashReceived = readCash(req.body?.cashReceived)
+    if (cashReceived === null) {
+      return res.status(400).json({
+        message: 'Indica lo que recibes en caja'
+      })
+    }
     const record = await Attendance.create({
       user: req.userId,
       date: mexicoCityDate(),
       checkInAt: new Date(),
       latitude: position.latitude,
       longitude: position.longitude,
-      checkOutAt: null
+      checkOutAt: null,
+      cashReceived
     })
     res.status(201).json(record)
   } catch (error) {
@@ -274,9 +291,15 @@ const checkOut = async (req, res) => {
       })
     }
     if (!requireWorkplace(req, res, 'salida')) return
+    const cashCut = readCash(req.body?.cashCut)
+    if (cashCut === null) {
+      return res.status(400).json({
+        message: 'Indica el dinero de tu corte'
+      })
+    }
     const record = await Attendance.findOneAndUpdate(
       { user: req.userId, checkOutAt: null },
-      { $set: { checkOutAt: new Date() } },
+      { $set: { checkOutAt: new Date(), cashCut } },
       { returnDocument: 'after', sort: { checkInAt: -1 } }
     )
     if (!record) {

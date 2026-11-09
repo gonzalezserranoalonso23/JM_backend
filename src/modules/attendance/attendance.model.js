@@ -24,6 +24,15 @@ const attendanceSchema = createSchema({
   checkOutAt: {
     type: Date,
     default: null
+  },
+  cashReceived: {
+    type: Number,
+    min: [0, 'Lo que recibes en caja no puede ser negativo']
+  },
+  cashCut: {
+    type: Number,
+    min: [0, 'El corte no puede ser negativo'],
+    default: null
   }
 })
 

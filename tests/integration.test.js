@@ -1160,13 +1160,25 @@ describe('Autenticación y roles', () => {
     process.env.WORKPLACE_LATITUDE = '19.432608'
     process.env.WORKPLACE_LONGITUDE = '-99.133209'
     process.env.WORKPLACE_RADIUS_METERS = '150'
-    const atWork = { latitude: 19.432608, longitude: -99.133209 }
+    const atWork = {
+      latitude: 19.432608,
+      longitude: -99.133209,
+      cashReceived: 800,
+      cashCut: 1250.5
+    }
     const far = { latitude: 19.45, longitude: -99.133209 }
     const away = await asStaff('post', '/api/attendance/check-in').send({
       date: '1999-01-01',
       ...far
     })
     expect(away.status).toBe(403)
+
+    const missingCash = await asStaff('post', '/api/attendance/check-in').send({
+      latitude: atWork.latitude,
+      longitude: atWork.longitude
+    })
+    expect(missingCash.status).toBe(400)
+    expect(missingCash.body.message).toMatch(/caja/)
 
     const entered = await asStaff('post', '/api/attendance/check-in').send({
       date: '1999-01-01',
@@ -1175,15 +1187,23 @@ describe('Autenticación y roles', () => {
     expect(entered.status, JSON.stringify(entered.body)).toBe(201)
     expect(entered.body.date).toBe(mexicoCityDate())
     expect(entered.body.checkOutAt).toBeNull()
+    expect(entered.body.cashReceived).toBe(800)
     expect(
       (await asStaff('post', '/api/attendance/check-in').send(atWork)).status
     ).toBe(409)
 
+    const missingCut = await asStaff('post', '/api/attendance/check-out').send({
+      latitude: atWork.latitude,
+      longitude: atWork.longitude
+    })
+    expect(missingCut.status).toBe(400)
+    expect(missingCut.body.message).toMatch(/corte/)
     const leftFar = await asStaff('post', '/api/attendance/check-out').send(far)
     expect(leftFar.status).toBe(403)
     const left = await asStaff('post', '/api/attendance/check-out').send(atWork)
     expect(left.status, JSON.stringify(left.body)).toBe(200)
     expect(left.body.checkOutAt).toBeTruthy()
+    expect(left.body.cashCut).toBe(1250.5)
     expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(400)
 
     const mine = await asStaff('get', '/api/attendance/me')
@@ -1193,6 +1213,8 @@ describe('Autenticación y roles', () => {
     expect(mine.body.page).toBe(1)
     expect(mine.body.limit).toBe(10)
     expect(mine.body.hasNextPage).toBe(false)
+    expect(mine.body.records[0].cashReceived).toBe(800)
+    expect(mine.body.records[0].cashCut).toBe(1250.5)
 
     const filtered = await asStaff(
       'get',
@@ -1209,6 +1231,8 @@ describe('Autenticación y roles', () => {
     const day = await api('get', `/api/attendance?date=${entered.body.date}`)
     expect(day.status, JSON.stringify(day.body)).toBe(200)
     expect(day.body.records).toHaveLength(1)
+    expect(day.body.records[0].cashReceived).toBe(800)
+    expect(day.body.records[0].cashCut).toBe(1250.5)
     expect(day.body.staff.some((user) => user.username === 'asistente')).toBe(
       true
     )
