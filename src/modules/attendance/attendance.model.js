@@ -1,6 +1,22 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
+const supplierPaymentSchema = new mongoose.Schema(
+  {
+    supplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Supplier',
+      required: [true, 'El proveedor es requerido']
+    },
+    amount: {
+      type: Number,
+      required: [true, 'La cantidad pagada es requerida'],
+      min: [0, 'La cantidad pagada no puede ser negativa']
+    }
+  },
+  { _id: false }
+)
+
 const attendanceSchema = createSchema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -33,6 +49,10 @@ const attendanceSchema = createSchema({
     type: Number,
     min: [0, 'El corte no puede ser negativo'],
     default: null
+  },
+  supplierPayments: {
+    type: [supplierPaymentSchema],
+    default: []
   }
 })
 

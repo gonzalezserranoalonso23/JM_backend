@@ -281,9 +281,7 @@ describe('Integración con MongoDB real', () => {
       process.env.SECURITY_JM
     )
     const asRegular = (method, url) =>
-      request(app)
-        [method](url)
-        .set('Authorization', `Bearer ${regularAuth}`)
+      request(app)[method](url).set('Authorization', `Bearer ${regularAuth}`)
 
     const own = await asRegular('post', '/api/tasks').send({
       title: 'Mi pendiente'
@@ -294,9 +292,9 @@ describe('Integración con MongoDB real', () => {
       { status: 'completed' }
     )
     expect(completed.status).toBe(200)
-    expect((await asRegular('delete', `/api/tasks/${own.body._id}`)).status).toBe(
-      200
-    )
+    expect(
+      (await asRegular('delete', `/api/tasks/${own.body._id}`)).status
+    ).toBe(200)
 
     const assigned = await api('post', '/api/tasks').send({
       title: 'Asignada al cajero',
@@ -847,20 +845,19 @@ describe('Integración con MongoDB real', () => {
     expect(await countRecords()).toBe(before + 3)
 
     const entry = await api('post', '/api/inventory-records/bulk').send({
-      records: [
-        line(frijol, entryTypeId, 2),
-        line(frijol, entryTypeId, 1.5)
-      ]
+      records: [line(frijol, entryTypeId, 2), line(frijol, entryTypeId, 1.5)]
     })
     expect(entry.status, JSON.stringify(entry.body)).toBe(201)
     expect(await stockOf(frijol)).toBe(13.5)
 
     // 0.9996 se muestra como 1. Vender esa última pieza tiene que poder hacerse.
     const setStock = (product, productStock) =>
-      mongoose.model('Product').collection.updateOne(
-        { _id: new mongoose.Types.ObjectId(product._id) },
-        { $set: { productStock } }
-      )
+      mongoose
+        .model('Product')
+        .collection.updateOne(
+          { _id: new mongoose.Types.ObjectId(product._id) },
+          { $set: { productStock } }
+        )
     const ultimo = await create('Ultimo', 1)
     await setStock(ultimo, 0.9996)
     const lastPiece = await api('post', '/api/inventory-records/bulk').send({
@@ -889,7 +886,10 @@ describe('Integración con MongoDB real', () => {
   it('abre la caja fuerte con el secreto y guarda las denominaciones', async () => {
     process.env.CASH_VAULT_SECRET = 'vault-secret'
     const quantities = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5].map(
-      (value) => ({ value, quantity: value === 100 ? 3 : value === 0.5 ? 4 : 0 })
+      (value) => ({
+        value,
+        quantity: value === 100 ? 3 : value === 0.5 ? 4 : 0
+      })
     )
 
     const denied = await api('post', '/api/denominations/open').send({
@@ -909,10 +909,12 @@ describe('Integración con MongoDB real', () => {
       quantities
     })
     expect(saved.status, JSON.stringify(saved.body)).toBe(200)
-    expect(saved.body.denominations.find((row) => row.value === 100).quantity).toBe(
-      3
-    )
-    expect(saved.body.denominations.find((row) => row.value === 0.5).amount).toBe(2)
+    expect(
+      saved.body.denominations.find((row) => row.value === 100).quantity
+    ).toBe(3)
+    expect(
+      saved.body.denominations.find((row) => row.value === 0.5).amount
+    ).toBe(2)
     expect(saved.body.total).toBe(302)
     expect(saved.body.updatedAt).toBeTruthy()
 
@@ -932,7 +934,9 @@ describe('Integración con MongoDB real', () => {
       secret: 'vault-secret'
     })
     expect(unconfigured.status).toBe(503)
-    expect((await request(app).post('/api/denominations/open')).status).toBe(401)
+    expect((await request(app).post('/api/denominations/open')).status).toBe(
+      401
+    )
   })
 
   it('valida IDs inválidos y campos requeridos', async () => {
@@ -988,13 +992,16 @@ describe('Autenticación y roles', () => {
     const t = userToken()
     expect((await as(t, 'get', '/api/products')).status).toBe(200)
     expect(
-      (await as(t, 'post', '/api/categories').send({ categories: 'Roles' })).status
+      (await as(t, 'post', '/api/categories').send({ categories: 'Roles' }))
+        .status
     ).toBe(403)
     const created = await api('post', '/api/categories').send({
       categories: 'Roles'
     })
     expect(created.status).toBe(201)
-    const task = await as(t, 'post', '/api/tasks').send({ title: 'Pendiente propio' })
+    const task = await as(t, 'post', '/api/tasks').send({
+      title: 'Pendiente propio'
+    })
     expect(task.status).toBe(201)
     expect(
       (await as(t, 'delete', `/api/categories/${created.body._id}`)).status
@@ -1040,12 +1047,8 @@ describe('Autenticación y roles', () => {
     expect(closed.status, JSON.stringify(closed.body)).toBe(200)
     expect((await as(token, 'get', '/api/products')).status).toBe(401)
     expect(
-      (
-        await api(
-          'post',
-          `/api/users/${new mongoose.Types.ObjectId()}/logout`
-        )
-      ).status
+      (await api('post', `/api/users/${new mongoose.Types.ObjectId()}/logout`))
+        .status
     ).toBe(404)
     expect((await api('post', '/api/users/no-es-id/logout')).status).toBe(400)
     const adminClosed = await api('post', `/api/users/${userId}/logout`)
@@ -1120,15 +1123,19 @@ describe('Autenticación y roles', () => {
         .set('Authorization', 'Bearer ' + token)
 
     expect(
-      (await api('post', '/api/attendance/check-in').send({
-        latitude: 19.432608,
-        longitude: -99.133209
-      })).status
+      (
+        await api('post', '/api/attendance/check-in').send({
+          latitude: 19.432608,
+          longitude: -99.133209
+        })
+      ).status
     ).toBe(403)
-    expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(400)
-    expect((await asStaff('post', '/api/attendance/check-in').send({})).status).toBe(
+    expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(
       400
     )
+    expect(
+      (await asStaff('post', '/api/attendance/check-in').send({})).status
+    ).toBe(400)
 
     const off = await mongoose.model('User').create({
       username: 'descanso',
@@ -1166,6 +1173,11 @@ describe('Autenticación y roles', () => {
       cashReceived: 800,
       cashCut: 1250.5
     }
+    const supplier = await mongoose.model('Supplier').create({
+      suppliersName: 'Abastos asistencia',
+      suppliersContact: 'Ana',
+      supplierPhone: '5551112233'
+    })
     const far = { latitude: 19.45, longitude: -99.133209 }
     const away = await asStaff('post', '/api/attendance/check-in').send({
       date: '1999-01-01',
@@ -1198,13 +1210,37 @@ describe('Autenticación y roles', () => {
     })
     expect(missingCut.status).toBe(400)
     expect(missingCut.body.message).toMatch(/corte/)
+    const badPayment = await asStaff('post', '/api/attendance/check-out').send({
+      latitude: atWork.latitude,
+      longitude: atWork.longitude,
+      cashCut: atWork.cashCut,
+      supplierPayments: [{ supplier: 'no-es-id', amount: 10 }]
+    })
+    expect(badPayment.status).toBe(400)
     const leftFar = await asStaff('post', '/api/attendance/check-out').send(far)
     expect(leftFar.status).toBe(403)
-    const left = await asStaff('post', '/api/attendance/check-out').send(atWork)
+    const left = await asStaff('post', '/api/attendance/check-out').send({
+      ...atWork,
+      supplierPayments: [
+        { supplier: String(supplier._id), amount: 700 },
+        { supplier: String(supplier._id), amount: 500 }
+      ]
+    })
     expect(left.status, JSON.stringify(left.body)).toBe(200)
     expect(left.body.checkOutAt).toBeTruthy()
     expect(left.body.cashCut).toBe(1250.5)
-    expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(400)
+    expect(
+      left.body.supplierPayments.reduce(
+        (total, payment) => total + payment.amount,
+        0
+      )
+    ).toBe(1200)
+    expect(left.body.supplierPayments[0].supplier.suppliersName).toBe(
+      'Abastos asistencia'
+    )
+    expect((await asStaff('post', '/api/attendance/check-out')).status).toBe(
+      400
+    )
 
     const mine = await asStaff('get', '/api/attendance/me')
     expect(mine.status).toBe(200)
@@ -1215,6 +1251,12 @@ describe('Autenticación y roles', () => {
     expect(mine.body.hasNextPage).toBe(false)
     expect(mine.body.records[0].cashReceived).toBe(800)
     expect(mine.body.records[0].cashCut).toBe(1250.5)
+    expect(
+      mine.body.records[0].supplierPayments.reduce(
+        (total, payment) => total + payment.amount,
+        0
+      )
+    ).toBe(1200)
 
     const filtered = await asStaff(
       'get',
@@ -1233,6 +1275,12 @@ describe('Autenticación y roles', () => {
     expect(day.body.records).toHaveLength(1)
     expect(day.body.records[0].cashReceived).toBe(800)
     expect(day.body.records[0].cashCut).toBe(1250.5)
+    expect(
+      day.body.records[0].supplierPayments.reduce(
+        (total, payment) => total + payment.amount,
+        0
+      )
+    ).toBe(1200)
     expect(day.body.staff.some((user) => user.username === 'asistente')).toBe(
       true
     )
@@ -1271,7 +1319,10 @@ describe('Autenticación y roles', () => {
       .set('Authorization', 'Bearer ' + bossToken)
       .send(atWork)
     expect(bossOut.status, JSON.stringify(bossOut.body)).toBe(200)
-    const withBoss = await api('get', `/api/attendance?date=${bossIn.body.date}`)
+    const withBoss = await api(
+      'get',
+      `/api/attendance?date=${bossIn.body.date}`
+    )
     expect(withBoss.body.staff.some((user) => user.username === 'jefe')).toBe(
       true
     )

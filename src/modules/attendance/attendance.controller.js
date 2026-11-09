@@ -5,10 +5,12 @@
  * GET  /me         -> getMyAttendance     turnos propios, 10 por página. query: page, from, to (YYYY-MM-DD)
  * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
  * POST /check-in   -> checkIn             body: { latitude, longitude, cashReceived } | quien tiene horario, en su día y en el lugar
- * POST /check-out  -> checkOut            body: { latitude, longitude, cashCut } | cierra la entrada abierta
+ * POST /check-out  -> checkOut            body: { latitude, longitude, cashCut, supplierPayments } | cierra la entrada abierta
  */
+import { isValidObjectId } from 'mongoose'
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
+import Supplier from '../suppliers/suppliers.model.js'
 import { grantsFullAccess } from '../roles/roles.model.js'
 import { roundMoney } from '../../utils/money.js'
 
@@ -38,6 +40,38 @@ export const mexicoCityWeekday = (instant = new Date()) =>
 const worksToday = (user, instant = new Date()) =>
   user?.haveSchedule === true &&
   user.schedule?.[mexicoCityWeekday(instant)]?.enabled === true
+
+const SUPPLIER_FIELDS = 'suppliersName'
+
+const readPayments = async (value) => {
+  if (value == null || value === '') return { payments: [] }
+  if (!Array.isArray(value)) {
+    return { error: 'Los pagos a proveedores tienen que ser una lista' }
+  }
+  const payments = []
+  for (const item of value) {
+    const supplier = item?.supplier
+    if (!isValidObjectId(supplier)) {
+      return { error: 'Elige un proveedor' }
+    }
+    const amount = readCash(item?.amount)
+    if (amount === null) {
+      return { error: 'Indica la cantidad pagada al proveedor' }
+    }
+    payments.push({ supplier, amount })
+  }
+  if (payments.length === 0) return { payments }
+  const found = await Supplier.find({
+    _id: { $in: payments.map((payment) => payment.supplier) }
+  })
+    .select('_id')
+    .lean()
+  const ids = new Set(found.map((supplier) => String(supplier._id)))
+  if (payments.some((payment) => !ids.has(String(payment.supplier)))) {
+    return { error: 'El proveedor no existe' }
+  }
+  return { payments }
+}
 
 const readCash = (value) => {
   if (value === undefined || value === null || String(value).trim() === '') {
@@ -163,6 +197,7 @@ const getMyAttendance = async (req, res) => {
   try {
     const [records, total, open, user] = await Promise.all([
       Attendance.find(filter)
+        .populate('supplierPayments.supplier', SUPPLIER_FIELDS)
         .sort({ checkInAt: -1 })
         .skip((paging.page - 1) * RECORD_PAGE_SIZE)
         .limit(RECORD_PAGE_SIZE)
@@ -190,9 +225,7 @@ const getMyAttendance = async (req, res) => {
 
 const getAttendanceDay = async (req, res) => {
   if (!grantsFullAccess(req.role)) {
-    return res
-      .status(403)
-      .json({ message: 'Acceso solo para administradores' })
+    return res.status(403).json({ message: 'Acceso solo para administradores' })
   }
   const date = String(req.query?.date || '').trim()
   if (!CLIENT_DATE.test(date)) {
@@ -208,6 +241,7 @@ const getAttendanceDay = async (req, res) => {
         .lean(),
       Attendance.find({ date })
         .populate('user', USER_FIELDS)
+        .populate('supplierPayments.supplier', SUPPLIER_FIELDS)
         .sort({ checkInAt: 1 })
         .lean()
     ])
@@ -297,11 +331,21 @@ const checkOut = async (req, res) => {
         message: 'Indica el dinero de tu corte'
       })
     }
+    const payments = await readPayments(req.body?.supplierPayments)
+    if (payments.error) {
+      return res.status(400).json({ message: payments.error })
+    }
     const record = await Attendance.findOneAndUpdate(
       { user: req.userId, checkOutAt: null },
-      { $set: { checkOutAt: new Date(), cashCut } },
+      {
+        $set: {
+          checkOutAt: new Date(),
+          cashCut,
+          supplierPayments: payments.payments
+        }
+      },
       { returnDocument: 'after', sort: { checkInAt: -1 } }
-    )
+    ).populate('supplierPayments.supplier', SUPPLIER_FIELDS)
     if (!record) {
       return res.status(400).json({
         message: 'No tienes una entrada abierta'
