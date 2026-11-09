@@ -350,70 +350,37 @@ const getInventoryByType = async (req, res) => {
 
 const getInventoryStats = async (req, res) => {
   try {
-    // Las sumas corren en Mongo. El dashboard no se trae cada producto ni cada movimiento.
-    const [productRows, movementRows] = await Promise.all([
-      Product.aggregate([
-        { $match: { isActive: { $ne: false } } },
-        {
-          $group: {
-            _id: null,
-            totalProducts: { $sum: 1 },
-            totalInventoryValue: {
-              $sum: { $multiply: ['$productStock', '$productPrice'] }
-            },
-            lowStockProducts: {
-              $sum: {
-                $cond: [
-                  { $lt: ['$productStock', '$minimumProductStock'] },
-                  1,
-                  0
-                ]
-              }
-            },
-            outOfStockProducts: {
-              $sum: { $cond: [{ $eq: ['$productStock', 0] }, 1, 0] }
+    // Solo productos activos. El dashboard no usa el historial de movimientos.
+    const productRows = await Product.aggregate([
+      { $match: { isActive: { $ne: false } } },
+      {
+        $group: {
+          _id: null,
+          totalProducts: { $sum: 1 },
+          totalInventoryValue: {
+            $sum: { $multiply: ['$productStock', '$productPrice'] }
+          },
+          lowStockProducts: {
+            $sum: {
+              $cond: [{ $lt: ['$productStock', '$minimumProductStock'] }, 1, 0]
             }
+          },
+          outOfStockProducts: {
+            $sum: { $cond: [{ $eq: ['$productStock', 0] }, 1, 0] }
           }
         }
-      ]),
-      InventoryRecord.aggregate([
-        {
-          $lookup: {
-            from: TypeInventory.collection.collectionName,
-            localField: 'typeInventory',
-            foreignField: '_id',
-            as: 'type'
-          }
-        },
-        { $unwind: { path: '$type', preserveNullAndEmptyArrays: true } },
-        {
-          $group: {
-            _id: null,
-            totalMovements: { $sum: 1 },
-            totalSalesValue: {
-              $sum: {
-                $cond: [
-                  { $eq: ['$type.stockDirection', -1] },
-                  toDouble('$totalAmount'),
-                  0
-                ]
-              }
-            }
-          }
-        }
-      ])
+      }
     ])
 
     const products = productRows[0] || {}
-    const movements = movementRows[0] || {}
 
     res.status(200).json({
       totalProducts: products.totalProducts || 0,
       totalInventoryValue: roundMoney(products.totalInventoryValue || 0),
       lowStockProducts: products.lowStockProducts || 0,
       outOfStockProducts: products.outOfStockProducts || 0,
-      totalSalesValue: roundMoney(movements.totalSalesValue || 0),
-      totalMovements: movements.totalMovements || 0
+      totalSalesValue: 0,
+      totalMovements: 0
     })
   } catch (error) {
     res.status(500).json({

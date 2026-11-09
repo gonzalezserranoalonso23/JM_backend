@@ -4,7 +4,7 @@
  *
  * GET    /           -> getTasks           todas, más recientes primero
  * GET    /pending    -> getPendingTasks
- * GET    /completed  -> getCompletedTasks  ordenadas por completedAt
+ * GET    /completed  -> getCompletedTasks  últimas 100, por completedAt
  * GET    /:id        -> getTask            params: id
  * POST   /           -> createTask         body: { title*, description, priority = 'medium', assignedTo } (createdBy = token)
  * PUT    /:id        -> updateTask         params: id | body: { title, description, priority, status, assignedTo }
@@ -226,6 +226,7 @@ export const getCompletedTasks = async (req, res) => {
   try {
     const completedTasks = await withUsers(Task.find({ status: 'completed' }))
       .sort({ completedAt: -1 })
+      .limit(100)
       .lean()
 
     res.status(200).json(completedTasks)

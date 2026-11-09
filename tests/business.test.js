@@ -455,10 +455,6 @@ describe('Business logic tests', () => {
         outOfStockProducts: 1
       }
     ])
-    InventoryRecordModel.aggregate.mockResolvedValue([
-      { totalSalesValue: 20, totalMovements: 3 }
-    ])
-
     await getInventoryStats({}, res)
 
     expect(Product.aggregate).toHaveBeenCalledWith([
@@ -481,23 +477,18 @@ describe('Business logic tests', () => {
         }
       }
     ])
-    const movementPipeline = InventoryRecordModel.aggregate.mock.calls.at(-1)[0]
-    expect(movementPipeline[0].$lookup.from).toBe('typeinventories')
-    expect(movementPipeline[2].$group.totalSalesValue.$sum.$cond[0]).toEqual({
-      $eq: ['$type.stockDirection', -1]
-    })
+    expect(InventoryRecordModel.aggregate).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith({
       totalProducts: 4,
       totalInventoryValue: 85,
       lowStockProducts: 2,
       outOfStockProducts: 1,
-      totalSalesValue: 20,
-      totalMovements: 3
+      totalSalesValue: 0,
+      totalMovements: 0
     })
 
     Product.aggregate.mockResolvedValue([])
-    InventoryRecordModel.aggregate.mockResolvedValue([])
     await getInventoryStats({}, res)
     expect(res.json).toHaveBeenLastCalledWith({
       totalProducts: 0,
