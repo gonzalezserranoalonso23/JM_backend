@@ -37,9 +37,15 @@ export const mexicoCityWeekday = (instant = new Date()) =>
     .format(instant)
     .toLowerCase()
 
+const weekdayOfClientDate = (date) =>
+  mexicoCityWeekday(new Date(`${date}T12:00:00-06:00`))
+
 const worksToday = (user, instant = new Date()) =>
   user?.haveSchedule === true &&
   user.schedule?.[mexicoCityWeekday(instant)]?.enabled === true
+
+const worksOnDate = (user, date) =>
+  user?.schedule?.[weekdayOfClientDate(date)]?.enabled === true
 
 const SUPPLIER_FIELDS = 'suppliersName'
 
@@ -236,7 +242,7 @@ const getAttendanceDay = async (req, res) => {
   try {
     const [staff, records] = await Promise.all([
       User.find({ haveSchedule: true })
-        .select(USER_FIELDS)
+        .select(`${USER_FIELDS} schedule`)
         .sort({ username: 1 })
         .lean(),
       Attendance.find({ date })
@@ -245,7 +251,15 @@ const getAttendanceDay = async (req, res) => {
         .sort({ checkInAt: 1 })
         .lean()
     ])
-    res.status(200).json({ date, staff, records })
+    const present = new Set(
+      records.map((record) => String(record.user?._id || ''))
+    )
+    const working = staff
+      .filter(
+        (user) => worksOnDate(user, date) || present.has(String(user._id))
+      )
+      .map(({ _id, username, fullName }) => ({ _id, username, fullName }))
+    res.status(200).json({ date, staff: working, records })
   } catch (error) {
     res.status(500).json({
       message: 'Error al cargar la asistencia del día',

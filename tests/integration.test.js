@@ -1284,6 +1284,9 @@ describe('Autenticación y roles', () => {
     expect(day.body.staff.some((user) => user.username === 'asistente')).toBe(
       true
     )
+    expect(day.body.staff.some((user) => user.username === 'descanso')).toBe(
+      false
+    )
 
     const manager = await mongoose.model('Role').findOne({ name: 'Manager' })
     const boss = await mongoose.model('User').create({
