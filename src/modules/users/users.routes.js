@@ -23,24 +23,15 @@ const loginLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
   message: { message: 'Demasiados intentos, intenta más tarde' }
 })
-// path login, loginUser controller to validate login
 router.post('/login', loginLimiter, loginUser)
-// cierra las sesiones de quien está autenticado
 router.post('/logout', verifyToken, logoutUser)
-// un admin cierra las sesiones de un usuario que no es administrador
 router.post('/:id/logout', verifyToken, requireAdmin, revokeUserSessions)
-// path users/login, registerUser controller to register in database
 router.post('/register', verifyToken, requireAdmin, registerUser)
-// usuarios disponibles para asignar tareas, accesible para cualquier usuario autenticado
 router.get('/assignable', verifyToken, getAssignableUsers)
 router.get('/me', verifyToken, getCurrentUser)
-// path users/register, getUsers controlller to get all users
 router.get('/', verifyToken, requireAdmin, getUsers)
-//  path users and id param, getUser controller to get one user
 router.get('/:id', verifyToken, requireAdmin, getUser)
-// path user, id param and method put. updateUser controller to update data of user
 router.put('/:id', verifyToken, requireAdmin, updateUser)
-// path delete, id param and method delete. deleteUser controller to delete one user only
 router.delete('/:id', verifyToken, requireAdmin, deleteUser)
 
 export default router

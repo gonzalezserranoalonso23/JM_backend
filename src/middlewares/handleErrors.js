@@ -1,5 +1,4 @@
-// Último middleware de Express. Cualquier error que llegue aquí sale
-// con el mismo formato, incluido un 3xx cuando trae a dónde redirigir.
+// One error shape, including a 3xx when the error carries a redirect.
 const PUBLIC_FIELDS = [
   'availableStock',
   'requestedQuantity',

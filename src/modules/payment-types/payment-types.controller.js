@@ -1,11 +1,11 @@
 /**
- * Tipos de pago (efectivo, tarjeta, etc.). Base: /api/payment-types (requiere token)
+ * Payment types. Base: /api/payment-types (token)
  *
- * GET    /     -> getPaymentTypes   ordenados por paymentType
- * GET    /:id  -> getPaymentType    params: id
- * POST   /     -> createPaymentType body: campos del modelo (solo admin)
- * PUT    /:id  -> updatePaymentType params: id | body: campos del modelo (solo admin)
- * DELETE /:id  -> deletePaymentType params: id (solo admin; 409 si hay registros que lo usan)
+ * GET    /
+ * GET    /:id  params { id }
+ * POST   /     model fields. Full access.
+ * PUT    /:id  params { id }, model fields. Full access.
+ * DELETE /:id  params { id }. Full access. 409 when a movement still uses it.
  */
 import { isValidObjectId } from 'mongoose'
 import PaymentType from './payment-types.model.js'

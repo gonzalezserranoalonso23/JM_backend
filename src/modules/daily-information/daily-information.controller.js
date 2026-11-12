@@ -1,11 +1,11 @@
 /**
- * Resumen diario de ventas. Base: /api/daily-information (requiere token)
+ * Daily sales summary. Base: /api/daily-information (token)
  *
- * GET    /     -> getDailyInformations
- * GET    /:id  -> getDailyInformation     params: id
- * POST   /     -> createDailyInformation  body: { date, cashSales, cardSales, totalSales, totalTransactions }
- * PUT    /:id  -> updateDailyInformation  params: id | body: mismos campos que POST
- * DELETE /:id  -> deleteDailyInformation  params: id (solo admin)
+ * GET    /     -> list
+ * GET    /:id  -> one row. params { id }
+ * POST   /     -> { date, cashSales, cardSales, totalSales, totalTransactions }
+ * PUT    /:id  -> params { id }, same body as POST
+ * DELETE /:id  -> params { id }, full access only
  */
 import DailyInformation from './daily-information.model.js'
 

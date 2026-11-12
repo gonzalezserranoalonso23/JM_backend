@@ -5,8 +5,7 @@ import { grantsFullAccess } from '../modules/roles/roles.model.js'
 const unauthorized = (res) =>
   res.status(401).json({ message: 'Token inválido o expirado' })
 
-// Valida firma/expiración y confirma contra la BD que el usuario siga existiendo,
-// que su sesión no haya sido cerrada (tokenVersion) y toma el rol vigente.
+// Checks signature, expiry, tokenVersion, and the current role.
 export const verifyToken = (req, res, next) => {
   const [scheme, token] = (req.headers.authorization || '').split(' ')
   if (scheme !== 'Bearer' || !token) {

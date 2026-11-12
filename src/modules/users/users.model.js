@@ -55,7 +55,7 @@ const userSchema = createSchema({
     type: scheduleSchema,
     default: undefined
   },
-  // Se incrementa para invalidar todos los tokens emitidos del usuario
+  // Bump to invalidate every token already issued for this user.
   tokenVersion: {
     type: Number,
     default: 0
@@ -71,7 +71,7 @@ userSchema.statics.findAuthState = function (id) {
 
 const UserModel = mongoose.model('User', userSchema)
 
-// El acceso sale del rol. Los documentos viejos pueden traer isAdmin guardado.
+// Access comes from the role. Old documents may still store isAdmin.
 export const dropLegacyAdminFlag = () =>
   UserModel.collection.updateMany(
     { isAdmin: { $exists: true } },

@@ -1,11 +1,10 @@
 /**
- * Asistencia del personal (no administradores).
- * Base: /api/attendance (requiere token)
+ * Staff attendance. Base: /api/attendance (token)
  *
- * GET  /me         -> getMyAttendance     turnos propios, 10 por página. query: page, from, to (YYYY-MM-DD)
- * GET  /           -> getAttendanceDay    query: date (YYYY-MM-DD) | solo admin
- * POST /check-in   -> checkIn             body: { latitude, longitude, cashReceived } | quien tiene horario, en su día y en el lugar
- * POST /check-out  -> checkOut            body: { latitude, longitude, cashCut, supplierPayments } | cierra la entrada abierta
+ * GET  /me        query { page, from, to } -> own shifts, 10 per page
+ * GET  /          query { date } -> day roster, full access only
+ * POST /check-in  { latitude, longitude, cashReceived } -> open a shift at the workplace
+ * POST /check-out { latitude, longitude, cashCut, supplierPayments } -> close the open shift
  */
 import { isValidObjectId } from 'mongoose'
 import Attendance from './attendance.model.js'
@@ -56,11 +55,11 @@ const readPayments = async (value) => {
   }
   const payments = []
   for (const item of value) {
-    const supplier = item?.supplier
+    const { supplier, amount: rawAmount } = item ?? {}
     if (!isValidObjectId(supplier)) {
       return { error: 'Elige un proveedor' }
     }
-    const amount = readCash(item?.amount)
+    const amount = readCash(rawAmount)
     if (amount === null) {
       return { error: 'Indica la cantidad pagada al proveedor' }
     }
@@ -128,9 +127,13 @@ const workplace = () => {
   return { latitude, longitude, radius }
 }
 
-const requireWorkplace = (req, res, action) => {
-  const latitude = readNumber(req.body?.latitude)
-  const longitude = readNumber(req.body?.longitude)
+const requireWorkplace = (
+  { latitude: rawLatitude, longitude: rawLongitude },
+  res,
+  action
+) => {
+  const latitude = readNumber(rawLatitude)
+  const longitude = readNumber(rawLongitude)
   if (
     latitude === null ||
     longitude === null ||
@@ -174,12 +177,13 @@ const canPunch = (req, user, res) => {
 const RECORD_PAGE_SIZE = 10
 
 const readRecordPage = (query = {}) => {
-  const page = Number(query.page ?? 1)
+  const { page: rawPage = 1, from: rawFrom = '', to: rawTo = '' } = query
+  const page = Number(rawPage)
   if (!Number.isInteger(page) || page < 1) {
     return { error: 'La página debe ser un entero mayor que cero' }
   }
-  const from = String(query.from || '').trim()
-  const to = String(query.to || '').trim()
+  const from = String(rawFrom).trim()
+  const to = String(rawTo).trim()
   if ((from && !CLIENT_DATE.test(from)) || (to && !CLIENT_DATE.test(to))) {
     return { error: 'La fecha debe tener formato YYYY-MM-DD' }
   }
@@ -190,7 +194,8 @@ const readRecordPage = (query = {}) => {
 }
 
 const getMyAttendance = async (req, res) => {
-  const paging = readRecordPage(req.query)
+  const { query = {} } = req
+  const paging = readRecordPage(query)
   if (paging.error) {
     return res.status(400).json({ message: paging.error })
   }
@@ -230,10 +235,12 @@ const getMyAttendance = async (req, res) => {
 }
 
 const getAttendanceDay = async (req, res) => {
-  if (!grantsFullAccess(req.role)) {
+  const { role, query = {} } = req
+  const { date: rawDate = '' } = query
+  if (!grantsFullAccess(role)) {
     return res.status(403).json({ message: 'Acceso solo para administradores' })
   }
-  const date = String(req.query?.date || '').trim()
+  const date = String(rawDate).trim()
   if (!CLIENT_DATE.test(date)) {
     return res
       .status(400)
@@ -269,6 +276,8 @@ const getAttendanceDay = async (req, res) => {
 }
 
 const checkIn = async (req, res) => {
+  const { body = {} } = req
+  const { latitude, longitude, cashReceived: received } = body
   let user
   try {
     user = await User.findById(req.userId)
@@ -284,7 +293,7 @@ const checkIn = async (req, res) => {
       error: error.message
     })
   }
-  const position = requireWorkplace(req, res, 'entrada')
+  const position = requireWorkplace({ latitude, longitude }, res, 'entrada')
   if (!position) return
   try {
     const open = await Attendance.findOne({
@@ -296,7 +305,7 @@ const checkIn = async (req, res) => {
         message: 'Ya tienes una entrada abierta. Registra la salida primero.'
       })
     }
-    const cashReceived = readCash(req.body?.cashReceived)
+    const cashReceived = readCash(received)
     if (cashReceived === null) {
       return res.status(400).json({
         message: 'Indica lo que recibes en caja'
@@ -326,6 +335,13 @@ const checkIn = async (req, res) => {
 }
 
 const checkOut = async (req, res) => {
+  const { body = {} } = req
+  const {
+    latitude,
+    longitude,
+    cashCut: rawCut,
+    supplierPayments
+  } = body
   try {
     const user = await User.findById(req.userId).select('haveSchedule').lean()
     if (!canPunch(req, user, res)) return
@@ -338,14 +354,14 @@ const checkOut = async (req, res) => {
         message: 'No tienes una entrada abierta'
       })
     }
-    if (!requireWorkplace(req, res, 'salida')) return
-    const cashCut = readCash(req.body?.cashCut)
+    if (!requireWorkplace({ latitude, longitude }, res, 'salida')) return
+    const cashCut = readCash(rawCut)
     if (cashCut === null) {
       return res.status(400).json({
         message: 'Indica el dinero de tu corte'
       })
     }
-    const payments = await readPayments(req.body?.supplierPayments)
+    const payments = await readPayments(supplierPayments)
     if (payments.error) {
       return res.status(400).json({ message: payments.error })
     }

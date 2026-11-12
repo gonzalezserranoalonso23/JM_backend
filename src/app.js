@@ -26,7 +26,7 @@ import { handleErrors, notFound } from './middlewares/handleErrors.js'
 dotenv.config()
 app.use(morgan('tiny'))
 app.disable('x-powered-by')
-// Railway/Vercel van detrás de un proxy: sin esto el rate limit ve una sola IP
+// Behind a proxy, otherwise rate limit sees one IP.
 app.set('trust proxy', 1)
 app.use(helmet())
 app.use(compression())

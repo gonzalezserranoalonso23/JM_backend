@@ -1,6 +1,6 @@
 /**
- * Avisa 10 minutos antes de la entrada a quien tiene horario, todavía no checó
- * y ya aceptó notificaciones. Corre en el proceso del API, hora de Ciudad de México.
+ * Notify 10 minutes before a scheduled shift. Mexico City time.
+ * One notice per person per day, only if push was accepted and they are not checked in.
  */
 import Attendance from './attendance.model.js'
 import ShiftReminder from './shift-reminder.model.js'

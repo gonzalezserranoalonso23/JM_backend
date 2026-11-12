@@ -5,8 +5,7 @@ import { dropLegacyAdminFlag } from '../modules/users/users.model.js'
 
 dotenv.config()
 
-// En Atlas se usa MONGODB_URI (mongodb+srv://...). Las variables sueltas se
-// mantienen para no romper entornos existentes.
+// Atlas uses MONGODB_URI. Loose variables stay for older environments.
 export const getMongoUri = () => {
   if (process.env.MONGODB_URI) return process.env.MONGODB_URI
   const { MONGO_USER, MONGO_PASSWORD, MONGO_DB_NAME } = process.env

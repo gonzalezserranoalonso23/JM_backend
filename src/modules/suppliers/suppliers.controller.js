@@ -1,11 +1,11 @@
 /**
- * Proveedores. Base: /api/suppliers (requiere token)
+ * Suppliers. Base: /api/suppliers (token)
  *
- * GET    /     -> getSuppliers    query opcional: page, limit, search (nombre, contacto, teléfono)
- * GET    /:id  -> getSupplier     params: id
- * POST   /     -> createSupplier  body: { suppliersName*, supplierPhone, suppliersContact, raiseOrder, deliverOrder, isActive }
- * PUT    /:id  -> updateSupplier  params: id | body: mismos campos que POST
- * DELETE /:id  -> deleteSupplier  params: id (solo admin)
+ * GET    /     query { page, limit, search }
+ * GET    /:id  params { id }
+ * POST   /     { suppliersName, supplierPhone, suppliersContact, raiseOrder, deliverOrder, isActive }
+ * PUT    /:id  params { id }, same body as POST
+ * DELETE /:id  params { id }. Full access.
  */
 import SuppliersModel from './suppliers.model.js'
 import { isValidObjectId } from 'mongoose'

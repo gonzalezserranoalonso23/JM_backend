@@ -7,6 +7,7 @@ import {
   mexicoCityDate,
   mexicoCityWeekday
 } from '../src/modules/attendance/attendance.controller.js'
+import { ORDER_STATUS } from '../src/modules/orders/orders.model.js'
 
 const weekSchedule = (enabledDay) =>
   Object.fromEntries(
@@ -613,9 +614,9 @@ describe('Integración con MongoDB real', () => {
     expect((await api('get', '/api/orders')).status).toBe(200)
     expect((await api('get', `/api/orders/${order.body._id}`)).status).toBe(200)
     const confirm = await api('put', `/api/orders/${order.body._id}`).send({
-      status: 'confirmado'
+      status: ORDER_STATUS.confirmed
     })
-    expect(confirm.body.status).toBe('confirmado')
+    expect(confirm.body.status).toBe(ORDER_STATUS.confirmed)
     expect((await api('delete', `/api/orders/${order.body._id}`)).status).toBe(
       200
     )

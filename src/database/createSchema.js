@@ -3,8 +3,7 @@ import mongoose from 'mongoose'
 const hasInclusiveProjection = (fields) =>
   fields && Object.values(fields).some((value) => value === 1 || value === true)
 
-// Esquema base: sin __v en documentos nuevos y oculto en los ya existentes
-// (incluidas lecturas con .lean()), salvo que la consulta use una proyección inclusiva.
+// Hide __v, including lean reads, unless the query projects fields in.
 const stripVersion = (_doc, ret) => {
   if (ret && typeof ret === 'object') delete ret.__v
   return ret

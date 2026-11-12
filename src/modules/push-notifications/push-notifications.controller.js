@@ -1,9 +1,9 @@
 /**
- * Suscripciones Web Push. Base: /api/push (requiere token)
+ * Web push subscriptions. Base: /api/push (token)
  *
- * GET    /vapid-public-key -> getVapidKey     clave pública para subscribe()
- * POST   /subscribe        -> subscribePush   body: { endpoint, keys: { p256dh, auth }, expirationTime }
- * DELETE /subscribe        -> unsubscribePush body opcional: { endpoint }
+ * GET    /vapid-public-key
+ * POST   /subscribe    { endpoint, keys: { p256dh, auth }, expirationTime }
+ * DELETE /subscribe    { endpoint }
  */
 import PushSubscription from './push-notifications.model.js'
 import { readVapidKeys } from '../../utils/webPush.js'

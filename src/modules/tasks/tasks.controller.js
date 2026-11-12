@@ -1,15 +1,13 @@
 /**
- * Tareas internas asignables a usuarios. Base: /api/tasks (requiere token)
- * Todas las respuestas incluyen createdBy/assignedTo/completedBy (username, fullName).
+ * Tasks. Base: /api/tasks (token). Responses include createdBy, assignedTo, completedBy.
  *
- * GET    /           -> getTasks           todas, más recientes primero
- * GET    /pending    -> getPendingTasks
- * GET    /completed  -> getCompletedTasks  últimas 100, por completedAt
- * GET    /:id        -> getTask            params: id
- * POST   /           -> createTask         body: { title*, description, priority = 'medium', assignedTo } (createdBy = token)
- * PUT    /:id        -> updateTask         params: id | body: { title, description, priority, status, assignedTo }
- *                                          status 'completed' registra completedBy/completedAt; 'pending' los limpia
- * DELETE /:id        -> deleteTask         params: id (admin, o quien la creó o tiene asignada)
+ * GET    /           all, newest first
+ * GET    /pending
+ * GET    /completed  latest 100 by completedAt
+ * GET    /:id        params { id }
+ * POST   /           { title, description, priority, assignedTo }. createdBy comes from the token.
+ * PUT    /:id        params { id }, { title, description, priority, status, assignedTo }
+ * DELETE /:id        params { id }. Full access, creator, or assignee.
  */
 import { USER_FIELDS } from '../../utils/projections.js'
 import Task from './tasks.model.js'
@@ -48,7 +46,7 @@ const withUsers = (query) =>
     .populate('assignedTo', USER_FIELDS)
     .populate('completedBy', USER_FIELDS)
 
-// Devuelve null si no hay asignado, undefined si es inválido o no existe
+// null: unassigned. undefined: missing or unknown user.
 const resolveAssignee = async (value) => {
   if (value === undefined || value === null || value === '') return null
   if (!isValidObjectId(value)) return undefined

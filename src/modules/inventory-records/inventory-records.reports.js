@@ -24,7 +24,7 @@ const toDouble = (input) => ({
   $convert: { input, to: 'double', onError: null, onNull: null }
 })
 
-// Una pasada en Mongo: conteo, total, productos distintos y utilidad por tipo.
+// One Mongo pass: count, total, distinct products, and profit by type.
 const summarizeMovements = async (match) => {
   const rows = await InventoryRecord.aggregate([
     { $match: match },
@@ -350,7 +350,7 @@ const getInventoryByType = async (req, res) => {
 
 const getInventoryStats = async (req, res) => {
   try {
-    // Solo productos activos. El dashboard no usa el historial de movimientos.
+    // Active products only. The dashboard does not scan movement history.
     const productRows = await Product.aggregate([
       { $match: { isActive: { $ne: false } } },
       {

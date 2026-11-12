@@ -1,17 +1,17 @@
 /**
- * Usuarios y autenticación. Base: /api/users
+ * Users and auth. Base: /api/users
  *
- * POST   /login       -> loginUser           body: { username, password } | público, limitado a 10 intentos/15 min
- * POST   /register    -> registerUser        body: { username, password, email, fullName, role, haveSchedule, schedule } (solo admin)
- * GET    /assignable  -> getAssignableUsers  usuarios (username, fullName) para asignar tareas (token)
- * GET    /me          -> getCurrentUser      perfil de quien está autenticado, con horario si lo tiene
- * GET    /            -> getUsers            query opcional: page, limit, search (solo admin)
- * GET    /:id         -> getUser             params: id (solo admin)
- * PUT    /:id         -> updateUser          params: id | body: { username, password, email, fullName, role, haveSchedule, schedule } (solo admin)
- * DELETE /:id         -> deleteUser          params: id (solo admin)
- * POST   /logout      -> logoutUser          cierra las sesiones de quien está autenticado
- * POST   /:id/logout  -> revokeUserSessions  Manager o Supervisor cierra las sesiones de Staff o User
- * Nunca se devuelve el campo password.
+ * POST   /login       { username, password }. Public, 10 attempts / 15 min.
+ * POST   /register    { username, password, email, fullName, role, haveSchedule, schedule }. Full access.
+ * GET    /assignable  { username, fullName } for task assignment.
+ * GET    /me          Signed-in profile, including schedule.
+ * GET    /            query { page, limit, search }. Full access.
+ * GET    /:id         params { id }. Full access.
+ * PUT    /:id         params { id }, { username, password, email, fullName, role, haveSchedule, schedule }.
+ * DELETE /:id         params { id }. Full access.
+ * POST   /logout      Closes the signed-in sessions.
+ * POST   /:id/logout  Full access closes a Staff or User session.
+ * password is never returned.
  */
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
@@ -270,7 +270,7 @@ const updateUser = async (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   const { username, password, email, fullName } = req.body
   try {
-    // La contraseña es opcional al editar; solo se actualizan los campos enviados.
+// password is optional on edit. Only sent fields change.
     const haveSchedule = asBoolean(req.body.haveSchedule)
     const role = await readRole(req.body.role)
     const update = Object.fromEntries(

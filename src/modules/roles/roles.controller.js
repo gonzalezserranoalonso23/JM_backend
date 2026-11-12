@@ -1,11 +1,10 @@
 /**
- * Roles del personal. Base: /api/roles (requiere token)
+ * Staff roles. Base: /api/roles (token)
  *
- * GET    /     -> getRoles     lista fija: Manager, Supervisor, Staff y User
- * GET    /:id  -> getRole      params: id
+ * GET    /     Manager, Supervisor, Staff, User
+ * GET    /:id  params { id }
  *
- * El _id de este documento es la llave foránea en User.role.
- * No se crean, editan ni borran: esos nombres definen el acceso.
+ * User.role stores this _id. Roles are not created, edited, or deleted.
  */
 import { isValidObjectId } from 'mongoose'
 import RoleModel, { ROLE_NAMES } from './roles.model.js'

@@ -56,7 +56,7 @@ const attendanceSchema = createSchema({
   }
 })
 
-// Una sola entrada abierta por persona. Al registrar la salida se libera.
+// One open shift per person. Checkout releases the index.
 attendanceSchema.index(
   { user: 1 },
   { unique: true, partialFilterExpression: { checkOutAt: null } }

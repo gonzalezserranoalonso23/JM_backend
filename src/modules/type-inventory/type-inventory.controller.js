@@ -1,12 +1,12 @@
 /**
- * Tipos de movimiento de inventario. stockDirection: 1 suma stock, -1 resta.
- * Base: /api/type-inventory (requiere token)
+ * Inventory movement types. stockDirection 1 adds stock, -1 subtracts it.
+ * Base: /api/type-inventory (token)
  *
- * GET    /     -> getTypeInventories
- * GET    /:id  -> getTypeInventory     params: id
- * POST   /     -> createTypeInventory  body: { typeInventory, stockDirection }
- * PUT    /:id  -> updateTypeInventory  params: id | body: { typeInventory, stockDirection }
- * DELETE /:id  -> deleteTypeInventory  params: id (solo admin)
+ * GET    /
+ * GET    /:id  params { id }
+ * POST   /     { typeInventory, stockDirection }
+ * PUT    /:id  params { id }, { typeInventory, stockDirection }
+ * DELETE /:id  params { id }. Full access.
  */
 import TypeInventory from './type-inventory.model.js'
 import { isValidObjectId } from 'mongoose'

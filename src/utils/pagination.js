@@ -23,8 +23,7 @@ export const getPagination = (query = {}) => {
 export const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-// Una regex normal distingue "limon" de "Limón". Cada vocal se abre a su
-// letra con y sin acento para que el combo encuentre el producto igual.
+// Match vowels with and without accents.
 const ACCENT_GROUPS = {
   a: 'aáàäâãAÁÀÄÂÃ',
   e: 'eéèëêEÉÈËÊ',

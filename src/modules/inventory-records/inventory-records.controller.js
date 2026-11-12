@@ -1,21 +1,19 @@
 /**
- * Movimientos de inventario (entradas/salidas/ventas) que ajustan el stock del
- * producto según stockDirection del tipo de inventario.
- * Base: /api/inventory-records (requiere token)
+ * Inventory movements. stockDirection adds or subtracts product stock.
+ * Base: /api/inventory-records (token)
  *
- * GET    /                       -> getInventoryRecords      query: page, limit, search (producto o fecha), type, direction (1 entradas | -1 salidas), paymentType
- * GET    /liveInformation       -> getLiveInformation       query: date (YYYY-MM-DD, la manda el frontend)
- * GET    /reports/daily-summary  -> getDailySalesSummary     query: date (YYYY-MM-DD)
- * GET    /reports/low-stock      -> getLowStockProducts      query: page, limit, search, category
- * GET    /reports/date-range     -> getSalesByDateRange      query: startDate, endDate, page, limit, paymentType, type (_id)
- *                                                          respuesta: summary y byType indexados por _id del tipo
- * GET    /reports/by-type        -> getInventoryByType       query: type
- * GET    /reports/stats          -> getInventoryStats        sin parámetros
- * GET    /:id                    -> getInventoryRecord       params: id
- * POST   /                       -> createInventoryRecord    body: { date, typeInventory, productName, category, paymentType, quantity, productPrice, totalAmount }
- * POST   /bulk                   -> createInventoryRecords   body: [registros] | { records: [registros] }
- * PUT    /:id                    -> updateInventoryRecord    params: id | body: campos del registro (reajusta stock)
- * DELETE /:id                    -> deleteInventoryRecord    params: id (solo admin; revierte stock, 409 si no es posible)
+ * GET    /                      query { page, limit, search, type, direction, paymentType }
+ * GET    /liveInformation       query { date }
+ * GET    /reports/daily-summary query { date }
+ * GET    /reports/low-stock     query { page, limit, search, category }
+ * GET    /reports/date-range    query { startDate, endDate, page, limit, paymentType, type }
+ * GET    /reports/by-type       query { type }
+ * GET    /reports/stats
+ * GET    /:id                   params { id }
+ * POST   /                      { date, typeInventory, productName, category, paymentType, quantity, productPrice, totalAmount }
+ * POST   /bulk                  [records] or { records }
+ * PUT    /:id                   params { id }, same fields as POST. Adjusts stock.
+ * DELETE /:id                   params { id }. Full access only. Reverses stock.
  */
 import InventoryRecord from './inventory-records.model.js'
 import Product from '../products/products.model.js'
@@ -83,10 +81,7 @@ const stockDelta = (type, quantity) =>
 const roundQty = (value) =>
   Math.round((Number(value) + Number.EPSILON) * 1000) / 1000
 
-// Ajuste atómico: evita carreras entre peticiones simultáneas. Al restar exige
-// que el stock ya redondeado a 3 decimales alcance, el mismo número que ve la
-// pantalla. Comparar el double crudo rechazaba la última pieza (0.9996 se ve
-// como 1 y no cumple stock >= 1).
+// Subtract only when rounded stock (3 decimals) still covers the quantity.
 const adjustStock = (productId, delta, { force = false } = {}) => {
   const roundedDelta = roundQty(delta)
   const filter = { _id: productId }
@@ -129,8 +124,7 @@ const insufficientStockError = (
   return error
 }
 
-// Deshace un movimiento ya creado. Cada paso queda marcado para que un
-// reintento no vuelva a sumar el stock si el borrado fue lo que falló.
+// Undo a saved movement. A retry must not add the stock twice.
 const rollbackRecord = async (rollback) => {
   if (!rollback.stockReverted) {
     await adjustStock(rollback.productId, -rollback.stockChange, {
@@ -225,7 +219,7 @@ const getInventoryRecords = async (req, res) => {
   }
 }
 
-// `date` se guarda como YYYY-MM-DD. Además del texto tal cual, acepta DD/MM/AAAA, DD/MM y MM/AAAA.
+// Stores YYYY-MM-DD. Also accepts DD/MM/YYYY, DD/MM, and MM/YYYY.
 const buildDateConditions = (search) => {
   const conditions = [{ date: { $regex: escapeRegex(search), $options: 'i' } }]
   if (!/^\d{1,4}([/.-]\d{1,4}){1,2}$/.test(search)) return conditions
@@ -268,8 +262,7 @@ const getInventoryRecord = (req, res) => {
       })
     )
 }
-// Valida un movimiento sin escribir. El stock de salidas se decide aparte,
-// sumando el carrito, para no guardar renglones si uno no alcanza.
+// Validate one line without writing. Exit stock is checked for the whole cart.
 const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const prepareInventoryRecord = async (payload, authenticatedUserId) => {
@@ -354,8 +347,7 @@ const prepareInventoryRecord = async (payload, authenticatedUserId) => {
   }
 }
 
-// Suma las salidas del carrito con el stock ya leído. Si un producto no
-// alcanza, no se escribe nada. El ajuste posterior sigue siendo atómico.
+// Check the cart against stock already read. Write nothing if one line fails.
 const assertExitStock = (drafts) => {
   const demand = new Map()
   for (const draft of drafts) {
@@ -385,8 +377,7 @@ const populateRecord = (id) =>
     .populate('category', CATEGORY_FIELDS)
     .select('-User')
 
-// Descuenta o suma el stock y guarda el registro. Si el guardado falla,
-// revierte el stock de este renglón antes de propagar el error.
+// Apply the stock change, then save. Roll this line back if the save fails.
 const persistInventoryRecord = async (draft) => {
   const stockChange = stockDelta(draft.inventoryType, draft.quantity)
   const updatedProduct = await adjustStock(draft.product._id, stockChange)
@@ -439,8 +430,7 @@ const createSingleInventoryRecord = async (payload, authenticatedUserId) => {
   return populated
 }
 
-// Normaliza errores de Mongoose (ValidationError/CastError) a un 400 con
-// mensaje legible, en vez de un 500 genérico que oculta la causa real.
+// ValidationError and CastError become 400.
 const toHttpError = (error) => {
   if (error.status) return error
 
@@ -498,12 +488,10 @@ const undoStockChanges = async (stockChanges) => {
   return failed
 }
 
-// Recibe un carrito. Valida todo el stock de salidas antes de escribir.
-// Ajusta stock por producto (una vez) e inserta los renglones en lote.
-// Responde con los ids en cuanto quedan guardados: la lista se vuelve a
-// cargar aparte y el cliente no se queda esperando el populate.
+// Body is [records] or { records }. Checks exit stock, then inserts ids only.
 const createInventoryRecords = async (req, res) => {
-  const records = Array.isArray(req.body) ? req.body : req.body.records
+  const { body = {} } = req
+  const records = Array.isArray(body) ? body : body.records
 
   if (!Array.isArray(records) || records.length === 0) {
     return res.status(400).json({
@@ -765,7 +753,7 @@ const updateInventoryRecord = async (req, res) => {
     const sameProduct =
       String(previous.productName) === String(next.productName)
 
-    // Deja el stock como si el movimiento viejo nunca hubiera existido y aplica el nuevo
+    // Reverse the old movement, then apply the new one.
     if (sameProduct) {
       if (nextDelta !== previousDelta) {
         const adjusted = await adjustStock(
@@ -816,7 +804,7 @@ const updateInventoryRecord = async (req, res) => {
   }
 }
 
-// Borrar un movimiento revierte su efecto en el stock
+// Deleting a movement reverses its stock change.
 const deleteInventoryRecord = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))

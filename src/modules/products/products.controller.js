@@ -1,13 +1,12 @@
 /**
- * Productos. Base: /api/products (requiere token)
+ * Products. Base: /api/products (token)
  *
- * GET    /             -> getProducts            query opcional: page, limit, search (nombre o proveedor)
- * GET    /promotions   -> getPromotionProducts  query: page, limit, search, category
- * GET    /:id          -> getProduct             params: id
- * POST   /     -> createProduct  body: { productName*, productDescription, purchasePrice, productPrice,
- *                                        minimumProductStock, productStock, supplier, category, isActive }
- * PUT    /:id  -> updateProduct  params: id | body: mismos campos que POST
- * DELETE /:id  -> deleteProduct  params: id (solo admin)
+ * GET    /            query { page, limit, search }
+ * GET    /promotions  query { page, limit, search, category }
+ * GET    /:id         params { id }
+ * POST   /            { productName, productDescription, purchasePrice, productPrice, minimumProductStock, productStock, supplier, category, isActive }
+ * PUT    /:id         params { id }, same body as POST
+ * DELETE /:id         params { id }. Full access.
  */
 import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../../utils/projections.js'
 import ProductsModel from './products.model.js'
@@ -52,9 +51,7 @@ const getProducts = async (req, res) => {
         .json(createPaginatedResponse(data, total, pagination))
     }
 
-    // Una sola pasada: el nombre que coincide va primero. Si el proveedor
-    // también coincide (Sabritas vende Cheetos), esos quedan después y no
-    // empujan al producto fuera de la primera página del combo.
+// Name matches come first. A supplier match must not push the product off page one.
     const pattern = accentInsensitiveRegex(search)
     const regex = { $regex: pattern, $options: 'i' }
     const suppliers = await SuppliersModel.find(
@@ -227,6 +224,32 @@ const getPromotionProducts = async (req, res) => {
   }
 }
 
+const LOOKUP_FIELDS = {
+  productName: 1,
+  productDescription: 1,
+  productStock: 1,
+  purchasePrice: 1,
+  productPrice: 1,
+  category: 1,
+  supplier: 1,
+  isActive: 1
+}
+
+const getProductLookup = async (_req, res) => {
+  try {
+    const data = await ProductsModel.find()
+      .select(LOOKUP_FIELDS)
+      .sort({ productName: 1 })
+      .lean()
+    return res.status(200).json(data)
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Error al cargar los productos',
+      error: error.message
+    })
+  }
+}
+
 const getProduct = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
@@ -360,6 +383,7 @@ const deleteProduct = async (req, res) => {
 
 export {
   getProduct,
+  getProductLookup,
   getProducts,
   getPromotionProducts,
   createProduct,

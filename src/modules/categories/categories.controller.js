@@ -1,11 +1,11 @@
 /**
- * Categorías de productos. Base: /api/categories (requiere token)
+ * Product categories. Base: /api/categories (token)
  *
- * GET    /            -> getCategories   query opcional: page, limit, search (sin ellos devuelve todo)
- * GET    /:id         -> getCategory     params: id
- * POST   /            -> createCategory  body: { categories }
- * PUT    /:id         -> updateCategory  params: id | body: { categories }
- * DELETE /:id         -> deleteCategory  params: id (solo admin)
+ * GET    /      query { page, limit, search }. Without them, returns every row.
+ * GET    /:id   params { id }
+ * POST   /      { categories }
+ * PUT    /:id   params { id }, { categories }
+ * DELETE /:id   params { id }. Full access.
  */
 import CategoriesModel from './categories.model.js'
 import { isValidObjectId } from 'mongoose'

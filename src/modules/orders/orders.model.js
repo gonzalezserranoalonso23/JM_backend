@@ -1,6 +1,11 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
+export const ORDER_STATUS = {
+  pending: 'pendiente',
+  confirmed: 'confirmado'
+}
+
 const OrderSchema = createSchema(
   {
     date: {
@@ -39,8 +44,8 @@ const OrderSchema = createSchema(
     },
     status: {
       type: String,
-      enum: ['pendiente', 'confirmado'],
-      default: 'pendiente'
+      enum: Object.values(ORDER_STATUS),
+      default: ORDER_STATUS.pending
     }
   },
   { timestamps: { createdAt: true, updatedAt: false } }

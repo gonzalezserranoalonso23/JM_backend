@@ -1,9 +1,9 @@
 /**
- * Caja fuerte. Base: /api/denominations (token + CASH_VAULT_SECRET)
+ * Cash vault. Base: /api/denominations (token + CASH_VAULT_SECRET)
  *
- * GET  /     -> getVaultUpdatedAt  solo la última fecha, sin cantidades
- * POST /open -> openVault          body: { secret }
- * PUT  /     -> saveVault          body: { secret, quantities: [{ value, quantity }] }
+ * GET  /      latest update time, without quantities
+ * POST /open  { secret }
+ * PUT  /      { secret, quantities: [{ value, quantity }] }
  */
 import { timingSafeEqual } from 'crypto'
 import Denomination from './denominations.model.js'

@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
-// Un aviso por persona y día. Evita repetirlo en cada revisión del minuto.
+// One notice per person per day.
 const shiftReminderSchema = createSchema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
