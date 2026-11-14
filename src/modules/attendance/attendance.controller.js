@@ -227,9 +227,9 @@ const getMyAttendance = async (req, res) => {
       hasNextPage: paging.page * RECORD_PAGE_SIZE < total
     })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al cargar la asistencia',
-      error: error.message
     })
   }
 }
@@ -268,9 +268,9 @@ const getAttendanceDay = async (req, res) => {
       .map(({ _id, username, fullName }) => ({ _id, username, fullName }))
     res.status(200).json({ date, staff: working, records })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al cargar la asistencia del día',
-      error: error.message
     })
   }
 }
@@ -288,9 +288,9 @@ const checkIn = async (req, res) => {
       return res.status(403).json({ message: 'Hoy no es tu día de trabajo' })
     }
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'Error al registrar la entrada',
-      error: error.message
     })
   }
   const position = requireWorkplace({ latitude, longitude }, res, 'entrada')
@@ -327,9 +327,9 @@ const checkIn = async (req, res) => {
         message: 'Ya tienes una entrada abierta. Registra la salida primero.'
       })
     }
+    console.error(error)
     res.status(500).json({
       message: 'Error al registrar la entrada',
-      error: error.message
     })
   }
 }
@@ -383,9 +383,9 @@ const checkOut = async (req, res) => {
     }
     res.status(200).json(record)
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al registrar la salida',
-      error: error.message
     })
   }
 }

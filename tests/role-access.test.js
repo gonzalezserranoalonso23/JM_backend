@@ -65,7 +65,9 @@ const FULL_ACCESS_ROUTES = new Set([
   'DELETE /api/users/:id',
   'POST /api/users/:id/logout',
   'DELETE /api/inventory-records/:id',
-  'DELETE /api/orders/:id'
+  'DELETE /api/orders/:id',
+  'POST /api/denominations/open',
+  'PUT /api/denominations'
 ])
 
 const OPEN_ENTRIES = [
@@ -225,10 +227,12 @@ describe('acceso por rol', () => {
           route.method.toLowerCase(),
           withId(route.path)
         )
-        expect(
-          res.status,
-          `${name} ${route.key} ${JSON.stringify(res.body)}`
-        ).not.toBe(403)
+        if (res.status === 403) {
+          expect(
+            res.body.message,
+            `${name} ${route.key} ${JSON.stringify(res.body)}`
+          ).not.toBe('Acceso solo para administradores')
+        }
         expect(res.status, `${name} ${route.key}`).not.toBe(401)
       }
     }

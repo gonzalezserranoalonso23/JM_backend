@@ -15,9 +15,9 @@ const getPaymentTypes = async (req, res) => {
   try {
     res.status(200).json(await PaymentType.find().sort({ paymentType: 1 }))
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Hubo un error al cargar los tipos de pago',
-      error: error.message
     })
   }
 }
@@ -34,21 +34,22 @@ const getPaymentType = async (req, res) => {
     }
     return res.status(200).json(paymentType)
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'Hubo un error al cargar el tipo de pago',
-      error: error.message
     })
   }
 }
 
 const createPaymentType = async (req, res) => {
   try {
-    const paymentType = await new PaymentType(req.body).save()
+    const paymentType = await new PaymentType({
+      paymentType: req.body?.paymentType
+    }).save()
     return res.status(201).json(paymentType)
   } catch (error) {
     return res.status(400).json({
       message: 'No se pudo crear el tipo de pago',
-      error: error.message
     })
   }
 }
@@ -61,7 +62,7 @@ const updatePaymentType = async (req, res) => {
   try {
     const paymentType = await PaymentType.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { paymentType: req.body?.paymentType },
       { returnDocument: 'after', runValidators: true }
     )
     if (!paymentType) {
@@ -71,7 +72,6 @@ const updatePaymentType = async (req, res) => {
   } catch (error) {
     return res.status(400).json({
       message: 'No se pudo actualizar el tipo de pago',
-      error: error.message
     })
   }
 }
@@ -95,9 +95,9 @@ const deletePaymentType = async (req, res) => {
     }
     return res.status(200).json({ message: 'Tipo de pago eliminado' })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'No se pudo eliminar el tipo de pago',
-      error: error.message
     })
   }
 }

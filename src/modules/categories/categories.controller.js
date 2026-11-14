@@ -39,9 +39,10 @@ const getCategories = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar las categorías', error: error.message })
+      .json({ message: 'Error al cargar las categorías' })
   }
 }
 
@@ -55,9 +56,10 @@ const getCategory = async (req, res) => {
       return res.status(404).json({ message: 'Categoría no encontrada' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar la categoría', error: error.message })
+      .json({ message: 'Error al cargar la categoría' })
   }
 }
 
@@ -72,9 +74,10 @@ const createCategory = async (req, res) => {
     const data = await newCategory.save()
     res.status(201).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al crear la categoría', error: error.message })
+      .json({ message: 'Error al crear la categoría' })
   }
 }
 
@@ -93,9 +96,9 @@ const updateCategory = async (req, res) => {
       return res.status(404).json({ message: 'Categoría no encontrada' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al actualizar la categoría',
-      error: error.message
     })
   }
 }
@@ -110,9 +113,10 @@ const deleteCategory = async (req, res) => {
       return res.status(404).json({ message: 'Categoría no encontrada' })
     res.status(200).json({ message: 'Categoría eliminada exitosamente' })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al eliminar la categoría', error: error.message })
+      .json({ message: 'Error al eliminar la categoría' })
   }
 }
 

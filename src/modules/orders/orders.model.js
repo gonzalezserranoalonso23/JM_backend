@@ -51,4 +51,6 @@ const OrderSchema = createSchema(
   { timestamps: { createdAt: true, updatedAt: false } }
 )
 
+OrderSchema.index({ status: -1, date: -1 })
+
 export default mongoose.model('Order', OrderSchema)

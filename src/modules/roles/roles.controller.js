@@ -25,9 +25,10 @@ const getRoles = async (req, res) => {
     const data = await RoleModel.find().lean()
     res.status(200).json(sortRoles(data))
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar los roles', error: error.message })
+      .json({ message: 'Error al cargar los roles' })
   }
 }
 
@@ -40,9 +41,10 @@ const getRole = async (req, res) => {
     if (!data) return res.status(404).json({ message: 'Rol no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar el rol', error: error.message })
+      .json({ message: 'Error al cargar el rol' })
   }
 }
 

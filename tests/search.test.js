@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { accentInsensitiveRegex } from '../src/utils/pagination.js'
+import { searchTokens } from '../src/utils/productSearch.js'
 
 const matches = (query, value) =>
   new RegExp(accentInsensitiveRegex(query), 'i').test(value)
@@ -15,5 +16,13 @@ describe('accentInsensitiveRegex', () => {
   it('no trata un signo como parte de la regex', () => {
     expect(matches('ana+', 'ana+')).toBe(true)
     expect(matches('ana+', 'anax')).toBe(false)
+  })
+})
+
+describe('searchTokens', () => {
+  it('se queda con las palabras que identifican el producto', () => {
+    expect(searchTokens('coca de 600')).toEqual(['coca', '600'])
+    expect(searchTokens('de')).toEqual([])
+    expect(searchTokens('c')).toEqual([])
   })
 })

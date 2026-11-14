@@ -36,9 +36,9 @@ const getAssignableUsers = async (req, res) => {
       .lean()
     res.status(200).json(users)
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al obtener usuarios',
-      error: error.message
     })
   }
 }
@@ -76,9 +76,10 @@ const getUsers = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar los usuarios', error: error.message })
+      .json({ message: 'Error al cargar los usuarios' })
   }
 }
 
@@ -90,9 +91,10 @@ const getCurrentUser = async (req, res) => {
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar el perfil', error: error.message })
+      .json({ message: 'Error al cargar el perfil' })
   }
 }
 
@@ -107,9 +109,10 @@ const getUser = async (req, res) => {
     if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar el usuario', error: error.message })
+      .json({ message: 'Error al cargar el usuario' })
   }
 }
 
@@ -157,9 +160,10 @@ const loginUser = async (req, res) => {
       role: roleName
     })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al iniciar sesión', error: error.message })
+      .json({ message: 'Error al iniciar sesión' })
   }
 }
 
@@ -223,6 +227,7 @@ const normalizeSchedule = (value) => {
 }
 
 const sendUserError = (res, error, fallback) => {
+  if (!error.status) console.error(error)
   res.status(error.status || 500).json({
     message: error.status ? error.message : fallback
   })
@@ -270,7 +275,7 @@ const updateUser = async (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   const { username, password, email, fullName } = req.body
   try {
-// password is optional on edit. Only sent fields change.
+    // password is optional on edit. Only sent fields change.
     const haveSchedule = asBoolean(req.body.haveSchedule)
     const role = await readRole(req.body.role)
     const update = Object.fromEntries(
@@ -314,9 +319,10 @@ const logoutUser = async (req, res) => {
     )
     res.status(200).json({ message: 'Sesión cerrada' })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cerrar sesión', error: error.message })
+      .json({ message: 'Error al cerrar sesión' })
   }
 }
 
@@ -336,9 +342,10 @@ const revokeUserSessions = async (req, res) => {
     await UserModel.updateOne({ _id: id }, { $inc: { tokenVersion: 1 } })
     res.status(200).json({ message: 'Sesiones cerradas' })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cerrar las sesiones', error: error.message })
+      .json({ message: 'Error al cerrar las sesiones' })
   }
 }
 
@@ -352,9 +359,10 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json({ message: 'Usuario eliminado exitosamente' })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al eliminar el usuario', error: error.message })
+      .json({ message: 'Error al eliminar el usuario' })
   }
 }
 

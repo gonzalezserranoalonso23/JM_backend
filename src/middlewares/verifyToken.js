@@ -26,7 +26,8 @@ export const verifyToken = (req, res, next) => {
         req.userId = decoded.id
         req.role = user.role?.name || ''
         next()
-      } catch {
+      } catch (error) {
+        console.error(error)
         res.status(500).json({ message: 'Error al validar la sesión' })
       }
     }

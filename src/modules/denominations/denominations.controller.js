@@ -1,5 +1,5 @@
 /**
- * Cash vault. Base: /api/denominations (token + CASH_VAULT_SECRET)
+ * Cash vault. Base: /api/denominations (full access + CASH_VAULT_SECRET)
  *
  * GET  /      latest update time, without quantities
  * POST /open  { secret }
@@ -8,6 +8,7 @@
 import { timingSafeEqual } from 'crypto'
 import Denomination from './denominations.model.js'
 import { roundMoney } from '../../utils/money.js'
+import { publicFailure } from '../../middlewares/handleErrors.js'
 
 export const DENOMINATIONS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5]
 
@@ -108,7 +109,7 @@ export const getVaultUpdatedAt = async (req, res) => {
 
     res.status(200).json({ updatedAt: latest?.updatedAt ?? null })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al cargar la caja fuerte', error)
   }
 }
 
@@ -118,7 +119,7 @@ export const openVault = async (req, res) => {
     await ensureDenominations()
     res.status(200).json(await snapshot())
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al abrir la caja fuerte', error)
   }
 }
 
@@ -156,6 +157,6 @@ export const saveVault = async (req, res) => {
 
     res.status(200).json(await snapshot())
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al guardar la caja fuerte', error)
   }
 }

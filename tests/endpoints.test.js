@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { accentInsensitiveRegex } from '../src/utils/pagination.js'
 import webPush from 'web-push'
 import express from 'express'
 import jwt from 'jsonwebtoken'
@@ -116,7 +117,11 @@ vi.mock('../src/modules/products/products.model.js', () => ({
 vi.mock('../src/modules/suppliers/suppliers.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/tasks/tasks.model.js', () => ({ default: makeModel() }))
+vi.mock('../src/modules/tasks/tasks.model.js', () => ({
+  default: makeModel(),
+  TASK_STATUS: { pending: 'pending', completed: 'completed' },
+  TASK_PRIORITY: { low: 'low', medium: 'medium', high: 'high' }
+}))
 vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
   default: makeModel()
 }))
@@ -499,16 +504,10 @@ describe('HTTP endpoint coverage', () => {
       .query({ page: 1, limit: 20, search: 'ana+' })
 
     expect(productResponse.status).toBe(200)
-    expect(ProductModel.find).toHaveBeenLastCalledWith({
-      $or: [
-        {
-          productName: {
-            $regex: 'l[eéèëêEÉÈËÊ][cçCÇ]h[eéèëêEÉÈËÊ]',
-            $options: 'i'
-          }
-        },
-        { supplier: { $in: ['sup1'] } }
-      ]
+    const pipeline = ProductModel.aggregate.mock.calls.at(-1)[0]
+    expect(pipeline[0].$match.$or[0].$and[0].$or[0].productName).toEqual({
+      $regex: accentInsensitiveRegex('leche'),
+      $options: 'i'
     })
     expect(userResponse.status).toBe(200)
     expect(UserModel.find).toHaveBeenLastCalledWith({

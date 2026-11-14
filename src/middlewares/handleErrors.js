@@ -86,6 +86,11 @@ export const notFound = (req, res, next) => {
   next(error)
 }
 
+export const publicFailure = (res, status, message, error) => {
+  if (status >= 500) console.error(error)
+  return res.status(status).json({ message })
+}
+
 export const handleErrors = (err, req, res, next) => {
   if (res.headersSent) return next(err)
 

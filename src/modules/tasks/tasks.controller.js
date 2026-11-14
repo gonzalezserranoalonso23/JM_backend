@@ -1,18 +1,23 @@
 /**
  * Tasks. Base: /api/tasks (token). Responses include createdBy, assignedTo, completedBy.
  *
- * GET    /           all, newest first
- * GET    /pending
- * GET    /completed  latest 100 by completedAt
+ * GET    /           query { page, limit }. Without them, every task, newest first.
+ * GET    /pending    query { page, limit }. Defaults to the first 20.
+ * GET    /completed  query { page, limit }. Defaults to the first 20, newest completion first.
  * GET    /:id        params { id }
  * POST   /           { title, description, priority, assignedTo }. createdBy comes from the token.
  * PUT    /:id        params { id }, { title, description, priority, status, assignedTo }
  * DELETE /:id        params { id }. Full access, creator, or assignee.
  */
 import { USER_FIELDS } from '../../utils/projections.js'
-import Task from './tasks.model.js'
+import Task, { TASK_PRIORITY, TASK_STATUS } from './tasks.model.js'
+import { publicFailure } from '../../middlewares/handleErrors.js'
 import User from '../users/users.model.js'
 import { isValidObjectId } from 'mongoose'
+import {
+  createPaginatedResponse,
+  getPagination
+} from '../../utils/pagination.js'
 import { sendPushToUser } from '../push-notifications/push.service.js'
 import { grantsFullAccess } from '../roles/roles.model.js'
 
@@ -54,13 +59,34 @@ const resolveAssignee = async (value) => {
   return exists ? value : undefined
 }
 
-export const getTasks = async (req, res) => {
-  try {
-    const tasks = await withUsers(Task.find()).sort({ createdAt: -1 }).lean()
+const pageOf = async (filter, sort, pagination) => {
+  const listed = () => withUsers(Task.find(filter)).sort(sort)
+  if (!pagination.requested) return listed().lean()
 
+  const [data, total] = await Promise.all([
+    listed().skip(pagination.skip).limit(pagination.limit).lean(),
+    Task.countDocuments(filter)
+  ])
+  return createPaginatedResponse(data, total, pagination)
+}
+
+const readPage = (req) =>
+  getPagination({
+    page: req.query?.page ?? 1,
+    limit: req.query?.limit ?? 20
+  })
+
+export const getTasks = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
+  try {
+    const tasks = await pageOf({}, { createdAt: -1 }, pagination)
     res.status(200).json(tasks)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
 }
 
@@ -78,7 +104,7 @@ export const getTask = async (req, res) => {
 
     res.status(200).json(task)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al cargar el pendiente', error)
   }
 }
 
@@ -99,10 +125,10 @@ export const createTask = async (req, res) => {
     const newTask = new Task({
       title,
       description: description || '',
-      priority: priority || 'medium',
+      priority: priority || TASK_PRIORITY.medium,
       assignedTo: assignee,
       createdBy: userId,
-      status: 'pending'
+      status: TASK_STATUS.pending
     })
 
     await newTask.save()
@@ -115,7 +141,7 @@ export const createTask = async (req, res) => {
     notifyAssignee(assignee, populatedTask)
     res.status(201).json(populatedTask)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al crear el pendiente', error)
   }
 }
 
@@ -158,10 +184,10 @@ export const updateTask = async (req, res) => {
 
     if (status && status !== task.status) {
       task.status = status
-      if (status === 'completed') {
+      if (status === TASK_STATUS.completed) {
         task.completedBy = userId
         task.completedAt = new Date()
-      } else if (status === 'pending') {
+      } else if (status === TASK_STATUS.pending) {
         task.completedBy = null
         task.completedAt = null
       }
@@ -176,7 +202,7 @@ export const updateTask = async (req, res) => {
 
     res.status(200).json(updatedTask)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al actualizar el pendiente', error)
   }
 }
 
@@ -204,31 +230,42 @@ export const deleteTask = async (req, res) => {
 
     res.status(200).json({ message: 'Pendiente eliminado' })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al eliminar el pendiente', error)
   }
 }
 
 export const getPendingTasks = async (req, res) => {
-  try {
-    const pendingTasks = await withUsers(Task.find({ status: 'pending' }))
-      .sort({ createdAt: -1 })
-      .lean()
+  const pagination = readPage(req)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
 
+  try {
+    const pendingTasks = await pageOf(
+      { status: TASK_STATUS.pending },
+      { createdAt: -1 },
+      pagination
+    )
     res.status(200).json(pendingTasks)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
 }
 
 export const getCompletedTasks = async (req, res) => {
-  try {
-    const completedTasks = await withUsers(Task.find({ status: 'completed' }))
-      .sort({ completedAt: -1 })
-      .limit(100)
-      .lean()
+  const pagination = readPage(req)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
 
+  try {
+    const completedTasks = await pageOf(
+      { status: TASK_STATUS.completed },
+      { completedAt: -1 },
+      pagination
+    )
     res.status(200).json(completedTasks)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
 }

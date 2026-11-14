@@ -32,6 +32,7 @@ import {
   escapeRegex,
   getPagination
 } from '../../utils/pagination.js'
+import { productTokenMatch, searchTokens } from '../../utils/productSearch.js'
 import { isIssueType } from './inventory-records.shared.js'
 import {
   getLiveInformation,
@@ -180,11 +181,10 @@ const getInventoryRecords = async (req, res) => {
 
     const search = req.query?.search?.trim()
     if (search) {
-      const regex = { $regex: escapeRegex(search), $options: 'i' }
-      const products = await Product.find(
-        { productName: regex },
-        { _id: 1 }
-      ).lean()
+      const tokens = searchTokens(search)
+      const products = tokens.length
+        ? await Product.find(productTokenMatch(tokens), { _id: 1 }).lean()
+        : []
       filter.$or = [
         { productName: { $in: products.map((item) => item._id) } },
         ...buildDateConditions(search)
@@ -212,9 +212,9 @@ const getInventoryRecords = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'Hubo un error al cargar los registros de inventario!',
-      error: error.message
     })
   }
 }
@@ -255,12 +255,12 @@ const getInventoryRecord = (req, res) => {
           .json({ message: 'Registro de inventario no encontrado' })
       res.status(200).json(data)
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Hubo un error el registro de inventario!',
-        error
       })
-    )
+    })
 }
 // Validate one line without writing. Exit stock is checked for the whole cart.
 const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -458,6 +458,7 @@ const createInventoryRecord = async (req, res) => {
     res.status(201).json(populatedRecord)
   } catch (rawError) {
     const error = toHttpError(rawError)
+    if (!error.status) console.error(rawError)
     res.status(error.status || 500).json({
       message: error.status
         ? error.message
@@ -465,7 +466,6 @@ const createInventoryRecord = async (req, res) => {
       availableStock: error.availableStock,
       requestedQuantity: error.requestedQuantity,
       productName: error.productName,
-      error: error.status ? undefined : error.message
     })
   }
 }
@@ -688,6 +688,7 @@ const createInventoryRecords = async (req, res) => {
       rollbackFailed = (await undoStockChanges(appliedStock)) || rollbackFailed
     }
 
+    if (rollbackFailed || !error.status) console.error(rawError)
     res.status(rollbackFailed ? 500 : error.status || 500).json({
       message: rollbackFailed
         ? 'El carrito no se completó y no se pudo deshacer. Revisa los movimientos antes de volver a registrarlo.'
@@ -697,7 +698,6 @@ const createInventoryRecords = async (req, res) => {
       availableStock: rollbackFailed ? undefined : error.availableStock,
       requestedQuantity: rollbackFailed ? undefined : error.requestedQuantity,
       productName: rollbackFailed ? undefined : error.productName,
-      error: error.status && !rollbackFailed ? undefined : error.message,
       failedAt: 0
     })
   }
@@ -796,10 +796,9 @@ const updateInventoryRecord = async (req, res) => {
         requestedQuantity: error.requestedQuantity
       })
     }
+    console.error(error)
     res.status(500).json({
-      message:
-        'Ha ocurrido un error al actualizar el registro de inventario !  ',
-      error
+      message: 'Ha ocurrido un error al actualizar el registro de inventario !  '
     })
   }
 }
@@ -834,9 +833,9 @@ const deleteInventoryRecord = async (req, res) => {
       message: 'El registro de inventario se ha borrado exitosamente!'
     })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
-      message: 'Hubo un error al intentar borrar el registro de inventario  ',
-      error
+      message: 'Hubo un error al intentar borrar el registro de inventario  '
     })
   }
 }

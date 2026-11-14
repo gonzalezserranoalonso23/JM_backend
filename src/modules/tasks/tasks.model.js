@@ -1,6 +1,17 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
+export const TASK_STATUS = {
+  pending: 'pending',
+  completed: 'completed'
+}
+
+export const TASK_PRIORITY = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high'
+}
+
 const taskSchema = createSchema(
   {
     title: {
@@ -14,13 +25,13 @@ const taskSchema = createSchema(
     },
     status: {
       type: String,
-      enum: ['pending', 'completed'],
-      default: 'pending'
+      enum: Object.values(TASK_STATUS),
+      default: TASK_STATUS.pending
     },
     priority: {
       type: String,
-      enum: ['low', 'medium', 'high'],
-      default: 'medium'
+      enum: Object.values(TASK_PRIORITY),
+      default: TASK_PRIORITY.medium
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

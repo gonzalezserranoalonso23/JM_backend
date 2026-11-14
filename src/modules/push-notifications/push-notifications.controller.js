@@ -45,9 +45,9 @@ export const subscribePush = async (req, res) => {
       endpoint: subscription.endpoint
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'No se pudo guardar la suscripción',
-      error: error.message
     })
   }
 }
@@ -61,9 +61,9 @@ export const unsubscribePush = async (req, res) => {
     await PushSubscription.deleteMany(filter)
     return res.status(200).json({ message: 'Suscripción eliminada' })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'No se pudo eliminar la suscripción',
-      error: error.message
     })
   }
 }

@@ -91,7 +91,9 @@ vi.mock('../src/modules/tasks/tasks.model.js', () => ({
     find: vi.fn(),
     findById: vi.fn(),
     findByIdAndDelete: vi.fn()
-  })
+  }),
+  TASK_STATUS: { pending: 'pending', completed: 'completed' },
+  TASK_PRIORITY: { low: 'low', medium: 'medium', high: 'high' }
 }))
 
 vi.mock('../src/modules/users/users.model.js', () => ({
@@ -184,6 +186,7 @@ describe('Controller smoke tests', () => {
 
   it('returns daily information', async () => {
     DailyInformationModel.find.mockReturnValue({
+      sort: vi.fn().mockReturnThis(),
       lean: vi.fn().mockResolvedValue([{ _id: 'd-1' }])
     })
 

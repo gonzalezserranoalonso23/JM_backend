@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import app from '../src/app.js'
-import { handleErrors, normalizeError } from '../src/middlewares/handleErrors.js'
+import {
+  handleErrors,
+  normalizeError,
+  publicFailure
+} from '../src/middlewares/handleErrors.js'
 
 const mockRes = () => {
   const res = {
@@ -80,6 +84,14 @@ describe('handleErrors', () => {
     expect(normalizeError(cast).status).toBe(400)
 
     expect(normalizeError({ code: 11000 }).status).toBe(409)
+  })
+
+  it('un 500 no devuelve el detalle interno', () => {
+    const res = mockRes()
+    publicFailure(res, 500, 'Error del servidor', new Error('mongodb://secret'))
+    expect(res.statusCode).toBe(500)
+    expect(res.body).toEqual({ message: 'Error del servidor' })
+    expect(JSON.stringify(res.body)).not.toContain('mongodb')
   })
 
   it('un error sin status queda en 500 sin filtrar el detalle interno', () => {

@@ -15,12 +15,12 @@ const getTypeInventories = (req, res) => {
   TypeInventory.find()
     .lean()
     .then((data) => res.status(200).json(data))
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Hubo un error al cargar los tipos de inventario!',
-        error
       })
-    )
+    })
 }
 
 const getTypeInventory = (req, res) => {
@@ -35,12 +35,12 @@ const getTypeInventory = (req, res) => {
           .json({ message: 'Tipo de inventario no encontrado' })
       res.status(200).json(data)
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Hubo un error al cargar el tipo de inventario!',
-        error
       })
-    )
+    })
 }
 const createTypeInventory = (req, res) => {
   const { typeInventory, stockDirection } = req.body
@@ -51,12 +51,12 @@ const createTypeInventory = (req, res) => {
   newTypeInventory
     .save()
     .then((data) => res.status(201).json(data))
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Ha ocurrido un error al crear el tipo de inventario ',
-        error
       })
-    )
+    })
 }
 
 const updateTypeInventory = (req, res) => {
@@ -79,12 +79,12 @@ const updateTypeInventory = (req, res) => {
           .json({ message: 'Tipo de inventario no encontrado' })
       res.status(200).json(data)
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Ha ocurrido un error al actualizar el tipo de inventario',
-        error
       })
-    )
+    })
 }
 
 const deleteTypeInventory = (req, res) => {
@@ -102,12 +102,12 @@ const deleteTypeInventory = (req, res) => {
         .status(200)
         .json({ message: 'El tipo de inventario se ha borrado exitosamente!' })
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Hubo un error al intentar borrar el tipo de inventario ',
-        error
       })
-    )
+    })
 }
 
 export {

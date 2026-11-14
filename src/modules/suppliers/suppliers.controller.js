@@ -50,9 +50,9 @@ const getSuppliers = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al cargar los proveedores',
-      error: error.message
     })
   }
 }
@@ -67,9 +67,10 @@ const getSupplier = async (req, res) => {
       return res.status(404).json({ message: 'Proveedor no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar el proveedor', error: error.message })
+      .json({ message: 'Error al cargar el proveedor' })
   }
 }
 
@@ -98,9 +99,10 @@ const createSupplier = async (req, res) => {
     const data = await newSupplier.save()
     res.status(201).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al crear el proveedor', error: error.message })
+      .json({ message: 'Error al crear el proveedor' })
   }
 }
 
@@ -133,9 +135,9 @@ const updateSupplier = async (req, res) => {
       return res.status(404).json({ message: 'Proveedor no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al actualizar el proveedor',
-      error: error.message
     })
   }
 }
@@ -150,9 +152,10 @@ const deleteSupplier = async (req, res) => {
       return res.status(404).json({ message: 'Proveedor no encontrado' })
     res.status(200).json({ message: 'Proveedor eliminado exitosamente' })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al eliminar el proveedor', error: error.message })
+      .json({ message: 'Error al eliminar el proveedor' })
   }
 }
 

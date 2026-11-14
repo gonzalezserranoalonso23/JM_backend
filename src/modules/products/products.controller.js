@@ -1,9 +1,9 @@
 /**
  * Products. Base: /api/products (token)
  *
- * GET    /            query { page, limit, search }
+ * GET    /            query { page, limit, search }. Tokens, filler words dropped.
  * GET    /promotions  query { page, limit, search, category }
- * GET    /lookup      query { search, active }. Tokens, filler words dropped.
+ * GET    /lookup      query { search, active }. Same token search.
  * GET    /:id         params { id }
  * POST   /            { productName, productDescription, purchasePrice, productPrice, minimumProductStock, productStock, supplier, category, isActive }
  * PUT    /:id         params { id }, same body as POST
@@ -19,6 +19,11 @@ import {
   createPaginatedResponse,
   getPagination
 } from '../../utils/pagination.js'
+import {
+  foldText,
+  productTokenMatch,
+  searchTokens
+} from '../../utils/productSearch.js'
 
 const getProducts = async (req, res) => {
   const pagination = getPagination(req.query)
@@ -45,43 +50,44 @@ const getProducts = async (req, res) => {
           .sort({ productName: 1 })
           .skip(pagination.skip)
           .limit(pagination.limit),
-        ProductsModel.countDocuments()
+        ProductsModel.countDocuments({})
       ])
       return res
         .status(200)
         .json(createPaginatedResponse(data, total, pagination))
     }
 
-// Name matches come first. A supplier match must not push the product off page one.
-    const pattern = accentInsensitiveRegex(search)
-    const regex = { $regex: pattern, $options: 'i' }
+    // A name that contains every token sorts before a supplier-only match.
+    const tokens = searchTokens(search)
+    if (!tokens.length) {
+      return res
+        .status(200)
+        .json(createPaginatedResponse([], 0, pagination))
+    }
     const suppliers = await SuppliersModel.find(
-      { suppliersName: regex },
+      productTokenMatch(tokens, ['suppliersName']),
       { _id: 1 }
     ).lean()
     const supplierIds = suppliers.map((item) => item._id)
-    const textMatch = {
-      $or: [
-        { $regexMatch: { input: '$productName', regex: pattern, options: 'i' } },
-        {
-          $regexMatch: {
-            input: { $ifNull: ['$productDescription', ''] },
-            regex: pattern,
-            options: 'i'
-          }
+    const textMatch = productTokenMatch(tokens)
+    const nameHit = {
+      $and: tokens.map((token) => ({
+        $regexMatch: {
+          input: '$productName',
+          regex: accentInsensitiveRegex(token),
+          options: 'i'
         }
-      ]
+      }))
     }
-    const match = {
-      $or: [{ productName: regex }, { productDescription: regex }]
-    }
-    if (supplierIds.length) match.$or.push({ supplier: { $in: supplierIds } })
+    const match = supplierIds.length
+      ? { $or: [textMatch, { supplier: { $in: supplierIds } }] }
+      : textMatch
 
     const project = (fields) =>
       Object.fromEntries(fields.split(' ').map((field) => [field, 1]))
     const [result] = await ProductsModel.aggregate([
       { $match: match },
-      { $addFields: { textHit: textMatch } },
+      { $addFields: { textHit: nameHit } },
       { $sort: { textHit: -1, productName: 1 } },
       {
         $facet: {
@@ -125,9 +131,10 @@ const getProducts = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar los productos', error: error.message })
+      .json({ message: 'Error al cargar los productos' })
   }
 }
 
@@ -164,9 +171,17 @@ const getPromotionProducts = async (req, res) => {
   const search =
     typeof req.query?.search === 'string' ? req.query.search.trim() : ''
   if (search) {
-    const pattern = accentInsensitiveRegex(search)
-    const regex = { $regex: pattern, $options: 'i' }
-    match.$or = [{ productName: regex }, { productDescription: regex }]
+    const tokens = searchTokens(search)
+    if (!tokens.length) {
+      return res
+        .status(200)
+        .json(
+          pagination.requested
+            ? createPaginatedResponse([], 0, pagination)
+            : []
+        )
+    }
+    Object.assign(match, productTokenMatch(tokens))
   }
   const { category } = req.query
   if (category) {
@@ -218,9 +233,9 @@ const getPromotionProducts = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al cargar los productos en promoción',
-      error: error.message
     })
   }
 }
@@ -234,37 +249,6 @@ const LOOKUP_FIELDS = {
   category: 1,
   supplier: 1,
   isActive: 1
-}
-
-const FILLER = new Set([
-  'de',
-  'del',
-  'la',
-  'el',
-  'los',
-  'las',
-  'y',
-  'a',
-  'en',
-  'con',
-  'un',
-  'una',
-  'por',
-  'para',
-  'al',
-  'lo'
-])
-const WORD = /[a-z0-9]+/g
-
-const foldText = (value) =>
-  String(value ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-const searchTokens = (query) => {
-  const tokens = foldText(query).match(WORD) ?? []
-  return tokens.filter((token) => token.length > 1 && !FILLER.has(token))
 }
 
 const rankLookup = (rows, tokens) => {
@@ -284,24 +268,7 @@ const getProductLookup = async (req, res) => {
     const tokens = searchTokens(search)
     if (!tokens.length) return res.status(200).json([])
 
-    const filter = {
-      $and: tokens.map((token) => ({
-        $or: [
-          {
-            productName: {
-              $regex: accentInsensitiveRegex(token),
-              $options: 'i'
-            }
-          },
-          {
-            productDescription: {
-              $regex: accentInsensitiveRegex(token),
-              $options: 'i'
-            }
-          }
-        ]
-      }))
-    }
+    const filter = productTokenMatch(tokens)
     if (active === '1') filter.isActive = { $ne: false }
 
     const rows = await ProductsModel.find(filter)
@@ -311,9 +278,9 @@ const getProductLookup = async (req, res) => {
 
     return res.status(200).json(rankLookup(rows, tokens).slice(0, 20))
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'Error al cargar los productos',
-      error: error.message
     })
   }
 }
@@ -330,9 +297,10 @@ const getProduct = async (req, res) => {
       return res.status(404).json({ message: 'Producto no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al cargar el producto', error: error.message })
+      .json({ message: 'Error al cargar el producto' })
   }
 }
 
@@ -383,9 +351,10 @@ const createProduct = async (req, res) => {
     const data = await newProduct.save()
     res.status(201).json(data)
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al crear el producto', error: error.message })
+      .json({ message: 'Error al crear el producto' })
   }
 }
 
@@ -426,9 +395,9 @@ const updateProduct = async (req, res) => {
       return res.status(404).json({ message: 'Producto no encontrado' })
     res.status(200).json(data)
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al actualizar el producto',
-      error: error.message
     })
   }
 }
@@ -443,9 +412,10 @@ const deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Producto no encontrado' })
     res.status(200).json({ message: 'Producto eliminado exitosamente' })
   } catch (error) {
+    console.error(error)
     res
       .status(500)
-      .json({ message: 'Error al eliminar el producto', error: error.message })
+      .json({ message: 'Error al eliminar el producto' })
   }
 }
 

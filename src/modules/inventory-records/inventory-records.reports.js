@@ -13,9 +13,9 @@ import {
 import { roundMoney } from '../../utils/money.js'
 import {
   createPaginatedResponse,
-  escapeRegex,
   getPagination
 } from '../../utils/pagination.js'
+import { productTokenMatch, searchTokens } from '../../utils/productSearch.js'
 import { isIssueType } from './inventory-records.shared.js'
 
 const DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/
@@ -139,9 +139,9 @@ const getLiveInformation = async (req, res) => {
       totalSales: roundMoney(totalSales)
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       message: 'Error al obtener las ventas del día',
-      error: error.message
     })
   }
 }
@@ -175,9 +175,9 @@ const getDailySalesSummary = async (req, res) => {
       transactions: exits
     })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al obtener resumen diario',
-      error: error.message
     })
   }
 }
@@ -196,8 +196,17 @@ const getLowStockProducts = async (req, res) => {
     const search =
       typeof req.query?.search === 'string' ? req.query.search.trim() : ''
     if (search) {
-      const regex = { $regex: escapeRegex(search), $options: 'i' }
-      filter.$or = [{ productName: regex }, { productDescription: regex }]
+      const tokens = searchTokens(search)
+      if (!tokens.length) {
+        return res
+          .status(200)
+          .json(
+            pagination.requested
+              ? createPaginatedResponse([], 0, pagination)
+              : []
+          )
+      }
+      Object.assign(filter, productTokenMatch(tokens))
     }
     const { category } = req.query
     if (category) {
@@ -226,9 +235,9 @@ const getLowStockProducts = async (req, res) => {
       .status(200)
       .json(createPaginatedResponse(products, total, pagination))
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al obtener productos con stock bajo',
-      error: error.message
     })
   }
 }
@@ -308,9 +317,9 @@ const getSalesByDateRange = async (req, res) => {
       ...response
     })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al obtener ventas por rango de fecha',
-      error: error.message
     })
   }
 }
@@ -341,9 +350,9 @@ const getInventoryByType = async (req, res) => {
       records
     })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al obtener inventario por tipo',
-      error: error.message
     })
   }
 }
@@ -383,9 +392,9 @@ const getInventoryStats = async (req, res) => {
       totalMovements: 0
     })
   } catch (error) {
+    console.error(error)
     res.status(500).json({
       message: 'Error al obtener estadísticas de inventario',
-      error: error.message
     })
   }
 }

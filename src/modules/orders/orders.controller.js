@@ -1,7 +1,13 @@
 import { SUPPLIER_FIELDS } from '../../utils/projections.js'
 import { lineTotal, roundMoney } from '../../utils/money.js'
 import Order, { ORDER_STATUS } from './orders.model.js'
+import Supplier from '../suppliers/suppliers.model.js'
 import { isValidObjectId } from 'mongoose'
+import {
+  accentInsensitiveRegex,
+  createPaginatedResponse,
+  getPagination
+} from '../../utils/pagination.js'
 
 const SUPPLIER_PATH = 'supplier items.supplier'
 
@@ -23,17 +29,60 @@ const pendingFirst = (left, right) => {
   return String(right.date || '').localeCompare(String(left.date || ''))
 }
 
-const getOrders = (req, res) => {
-  Order.find()
-    .populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
+const orderFilter = async (search) => {
+  const term = String(search || '').trim()
+  if (!term) return {}
+  const pattern = accentInsensitiveRegex(term)
+  const suppliers = await Supplier.find({
+    $or: [
+      { suppliersName: { $regex: pattern, $options: 'i' } },
+      { name: { $regex: pattern, $options: 'i' } }
+    ]
+  })
+    .select('_id')
     .lean()
-    .then((data) => res.status(200).json(data.sort(pendingFirst)))
-    .catch((error) =>
-      res.status(500).json({
-        message: 'Error al cargar órdenes',
-        error
-      })
-    )
+  return {
+    $or: [
+      { date: { $regex: pattern, $options: 'i' } },
+      { supplier: { $in: suppliers.map((row) => row._id) } }
+    ]
+  }
+}
+
+const listOrders = (filter) =>
+  Order.find(filter)
+    .populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
+    .sort({ status: -1, date: -1 })
+
+const getOrders = async (req, res) => {
+  const pagination = getPagination(req.query)
+  if (pagination.error) {
+    return res.status(400).json({ message: pagination.error })
+  }
+
+  try {
+    const filter = await orderFilter(req.query?.search)
+    if (!pagination.requested) {
+      const data = await listOrders(filter).lean()
+      return res.status(200).json(data.sort(pendingFirst))
+    }
+
+    const [data, total] = await Promise.all([
+      listOrders(filter)
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .lean(),
+      Order.countDocuments(filter)
+    ])
+    return res
+      .status(200)
+      .json(createPaginatedResponse(data, total, pagination))
+  } catch (error) {
+    console.error(error)
+    return res.status(500).json({
+      message: 'Error al cargar órdenes',
+    })
+  }
 }
 
 const getOrder = (req, res) => {
@@ -51,12 +100,12 @@ const getOrder = (req, res) => {
       }
       res.status(200).json(data)
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Error al cargar la orden',
-        error
       })
-    )
+    })
 }
 
 const createOrder = (req, res) => {
@@ -83,12 +132,12 @@ const createOrder = (req, res) => {
       return Order.findById(data._id).populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
     })
     .then((data) => res.status(201).json(data))
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Error al crear la orden',
-        error
       })
-    )
+    })
 }
 
 const updateOrder = (req, res) => {
@@ -124,12 +173,12 @@ const updateOrder = (req, res) => {
       }
       res.status(200).json(data)
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Error al actualizar la orden',
-        error
       })
-    )
+    })
 }
 
 const deleteOrder = (req, res) => {
@@ -148,12 +197,12 @@ const deleteOrder = (req, res) => {
         message: 'Orden eliminada exitosamente'
       })
     })
-    .catch((error) =>
+    .catch((error) => {
+      console.error(error)
       res.status(500).json({
         message: 'Error al eliminar la orden',
-        error
       })
-    )
+    })
 }
 
 export { getOrders, getOrder, createOrder, updateOrder, deleteOrder }
