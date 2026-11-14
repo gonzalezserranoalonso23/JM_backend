@@ -3,6 +3,7 @@
  *
  * GET    /            query { page, limit, search }
  * GET    /promotions  query { page, limit, search, category }
+ * GET    /lookup      query { search, active }. Tokens, filler words dropped.
  * GET    /:id         params { id }
  * POST   /            { productName, productDescription, purchasePrice, productPrice, minimumProductStock, productStock, supplier, category, isActive }
  * PUT    /:id         params { id }, same body as POST
@@ -235,13 +236,80 @@ const LOOKUP_FIELDS = {
   isActive: 1
 }
 
-const getProductLookup = async (_req, res) => {
+const FILLER = new Set([
+  'de',
+  'del',
+  'la',
+  'el',
+  'los',
+  'las',
+  'y',
+  'a',
+  'en',
+  'con',
+  'un',
+  'una',
+  'por',
+  'para',
+  'al',
+  'lo'
+])
+const WORD = /[a-z0-9]+/g
+
+const foldText = (value) =>
+  String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+const searchTokens = (query) => {
+  const tokens = foldText(query).match(WORD) ?? []
+  return tokens.filter((token) => token.length > 1 && !FILLER.has(token))
+}
+
+const rankLookup = (rows, tokens) => {
+  const ranked = rows.map((product) => {
+    const name = foldText(product.productName)
+    const inName = tokens.every((token) => name.includes(token))
+    return { product, rank: inName ? 0 : 1, name }
+  })
+  ranked.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'es'))
+  return ranked.map((item) => item.product)
+}
+
+const getProductLookup = async (req, res) => {
   try {
-    const data = await ProductsModel.find()
+    const { query = {} } = req
+    const { search = '', active } = query
+    const tokens = searchTokens(search)
+    if (!tokens.length) return res.status(200).json([])
+
+    const filter = {
+      $and: tokens.map((token) => ({
+        $or: [
+          {
+            productName: {
+              $regex: accentInsensitiveRegex(token),
+              $options: 'i'
+            }
+          },
+          {
+            productDescription: {
+              $regex: accentInsensitiveRegex(token),
+              $options: 'i'
+            }
+          }
+        ]
+      }))
+    }
+    if (active === '1') filter.isActive = { $ne: false }
+
+    const rows = await ProductsModel.find(filter)
       .select(LOOKUP_FIELDS)
-      .sort({ productName: 1 })
+      .limit(40)
       .lean()
-    return res.status(200).json(data)
+
+    return res.status(200).json(rankLookup(rows, tokens).slice(0, 20))
   } catch (error) {
     return res.status(500).json({
       message: 'Error al cargar los productos',
