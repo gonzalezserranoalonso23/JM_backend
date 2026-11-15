@@ -3,6 +3,9 @@ import { isSudo } from '../roles/roles.model.js'
 import { isShutdown, setShutdown } from './app-state.js'
 
 export const getAppStatus = (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  res.set('Pragma', 'no-cache')
+  res.set('Expires', '0')
   res.status(200).json({ shutdown: isShutdown() })
 }
 
