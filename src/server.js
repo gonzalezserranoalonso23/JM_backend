@@ -1,6 +1,11 @@
+/**
+ * Process entry. The port stays closed until Mongo is ready.
+ * Shift reminders start after listen, so a failed database connection never
+ * leaves a background timer running.
+ */
 import app from './app.js'
-import connection from './database/connection.js'
-import { startShiftReminders } from './modules/attendance/shiftReminder.js'
+import connection from './config/connection.js'
+import { startShiftReminders } from './utils/shiftReminder.js'
 
 if (!process.env.SECURITY_JM) {
   console.error('SECURITY_JM debe estar definido')

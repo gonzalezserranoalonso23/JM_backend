@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   mexicoCityDate,
   mexicoCityWeekday
-} from '../src/modules/attendance/attendance.controller.js'
+} from '../src/controllers/attendance.controller.js'
 
 const users = { rows: [] }
 
-vi.mock('../src/modules/users/users.model.js', () => ({
+vi.mock('../src/models/users.model.js', () => ({
   default: {
     find: vi.fn(() => ({
       select: () => ({
@@ -16,22 +16,22 @@ vi.mock('../src/modules/users/users.model.js', () => ({
   }
 }))
 
-vi.mock('../src/modules/attendance/attendance.model.js', () => ({
+vi.mock('../src/models/attendance.model.js', () => ({
   default: { exists: vi.fn() }
 }))
 
 vi.mock(
-  '../src/modules/push-notifications/push-notifications.model.js',
+  '../src/models/pushNotifications.model.js',
   () => ({
     default: { exists: vi.fn() }
   })
 )
 
-vi.mock('../src/modules/push-notifications/push.service.js', () => ({
+vi.mock('../src/utils/pushService.js', () => ({
   sendPushToUser: vi.fn()
 }))
 
-vi.mock('../src/modules/attendance/shift-reminder.model.js', () => ({
+vi.mock('../src/models/shiftReminder.model.js', () => ({
   default: {
     create: vi.fn(),
     deleteOne: vi.fn()
@@ -39,15 +39,15 @@ vi.mock('../src/modules/attendance/shift-reminder.model.js', () => ({
 }))
 
 const { default: Attendance } =
-  await import('../src/modules/attendance/attendance.model.js')
+  await import('../src/models/attendance.model.js')
 const { default: PushSubscription } =
-  await import('../src/modules/push-notifications/push-notifications.model.js')
+  await import('../src/models/pushNotifications.model.js')
 const { sendPushToUser } =
-  await import('../src/modules/push-notifications/push.service.js')
+  await import('../src/utils/pushService.js')
 const { default: ShiftReminder } =
-  await import('../src/modules/attendance/shift-reminder.model.js')
+  await import('../src/models/shiftReminder.model.js')
 const { isShiftReminderDue, minutesFromClock, remindDueShifts } =
-  await import('../src/modules/attendance/shiftReminder.js')
+  await import('../src/utils/shiftReminder.js')
 
 const offsetMinutes = (instant) => {
   const name = new Intl.DateTimeFormat('en-US', {

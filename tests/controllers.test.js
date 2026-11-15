@@ -28,7 +28,7 @@ const { makeModel } = vi.hoisted(() => {
   return { makeModel }
 })
 
-vi.mock('../src/modules/categories/categories.model.js', () => ({
+vi.mock('../src/models/categories.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('../src/modules/categories/categories.model.js', () => ({
   })
 }))
 
-vi.mock('../src/modules/daily-information/daily-information.model.js', () => ({
+vi.mock('../src/models/dailyInformation.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('../src/modules/daily-information/daily-information.model.js', () => ({
   })
 }))
 
-vi.mock('../src/modules/products/products.model.js', () => ({
+vi.mock('../src/models/products.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock('../src/modules/products/products.model.js', () => ({
   })
 }))
 
-vi.mock('../src/modules/orders/orders.model.js', () => ({
+vi.mock('../src/models/orders.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -64,7 +64,7 @@ vi.mock('../src/modules/orders/orders.model.js', () => ({
   })
 }))
 
-vi.mock('../src/modules/suppliers/suppliers.model.js', () => ({
+vi.mock('../src/models/suppliers.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -73,7 +73,7 @@ vi.mock('../src/modules/suppliers/suppliers.model.js', () => ({
   })
 }))
 
-vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
+vi.mock('../src/models/typeInventory.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -82,11 +82,11 @@ vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
   })
 }))
 
-vi.mock('../src/modules/push-notifications/push.service.js', () => ({
+vi.mock('../src/utils/pushService.js', () => ({
   sendPushToUser: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('../src/modules/tasks/tasks.model.js', () => ({
+vi.mock('../src/models/tasks.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findById: vi.fn(),
@@ -96,7 +96,15 @@ vi.mock('../src/modules/tasks/tasks.model.js', () => ({
   TASK_PRIORITY: { low: 'low', medium: 'medium', high: 'high' }
 }))
 
-vi.mock('../src/modules/users/users.model.js', () => ({
+vi.mock('../src/models/roles.model.js', async () => {
+  const actual = await vi.importActual('../src/models/roles.model.js')
+  return {
+    ...actual,
+    findSudoRoleId: vi.fn().mockResolvedValue(null)
+  }
+})
+
+vi.mock('../src/models/users.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
     findOne: vi.fn(),
@@ -108,40 +116,40 @@ vi.mock('../src/modules/users/users.model.js', () => ({
 }))
 
 import bcrypt from 'bcryptjs'
-import CategoriesModel from '../src/modules/categories/categories.model.js'
+import CategoriesModel from '../src/models/categories.model.js'
 import {
   getCategories,
   createCategory
-} from '../src/modules/categories/categories.controller.js'
+} from '../src/controllers/categories.controller.js'
 import {
   getDailyInformations,
   createDailyInformation
-} from '../src/modules/daily-information/daily-information.controller.js'
+} from '../src/controllers/dailyInformation.controller.js'
 import {
   createInventoryRecord,
   getInventoryRecords
-} from '../src/modules/inventory-records/inventory-records.controller.js'
-import { getOrders } from '../src/modules/orders/orders.controller.js'
+} from '../src/controllers/inventoryRecords.controller.js'
+import { getOrders } from '../src/controllers/orders.controller.js'
 import {
   createProduct,
   getProducts
-} from '../src/modules/products/products.controller.js'
-import { getSuppliers } from '../src/modules/suppliers/suppliers.controller.js'
-import { createTask, getTasks } from '../src/modules/tasks/tasks.controller.js'
-import { sendPushToUser } from '../src/modules/push-notifications/push.service.js'
+} from '../src/controllers/products.controller.js'
+import { getSuppliers } from '../src/controllers/suppliers.controller.js'
+import { createTask, getTasks } from '../src/controllers/tasks.controller.js'
+import { sendPushToUser } from '../src/utils/pushService.js'
 import {
   createTypeInventory,
   getTypeInventories
-} from '../src/modules/type-inventory/type-inventory.controller.js'
-import { getUsers, loginUser } from '../src/modules/users/users.controller.js'
-import UsersModel from '../src/modules/users/users.model.js'
-import ProductModel from '../src/modules/products/products.model.js'
-import InventoryRecord from '../src/modules/inventory-records/inventory-records.model.js'
-import OrderModel from '../src/modules/orders/orders.model.js'
-import SupplierModel from '../src/modules/suppliers/suppliers.model.js'
-import TypeInventoryModel from '../src/modules/type-inventory/type-inventory.model.js'
-import TaskModel from '../src/modules/tasks/tasks.model.js'
-import DailyInformationModel from '../src/modules/daily-information/daily-information.model.js'
+} from '../src/controllers/typeInventory.controller.js'
+import { getUsers, loginUser } from '../src/controllers/users.controller.js'
+import UsersModel from '../src/models/users.model.js'
+import ProductModel from '../src/models/products.model.js'
+import InventoryRecord from '../src/models/inventoryRecords.model.js'
+import OrderModel from '../src/models/orders.model.js'
+import SupplierModel from '../src/models/suppliers.model.js'
+import TypeInventoryModel from '../src/models/typeInventory.model.js'
+import TaskModel from '../src/models/tasks.model.js'
+import DailyInformationModel from '../src/models/dailyInformation.model.js'
 
 const mockRes = () => ({
   status: vi.fn().mockReturnThis(),
@@ -339,7 +347,14 @@ describe('Controller smoke tests', () => {
   it('notifies only the assigned user when a pending task is created', async () => {
     const res = mockRes()
     const assigneeId = '507f1f77bcf86cd799439011'
-    UsersModel.exists.mockResolvedValue({ _id: assigneeId })
+    UsersModel.findById.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        populate: vi.fn().mockResolvedValue({
+          _id: assigneeId,
+          role: { name: 'Staff' }
+        })
+      })
+    })
     TaskModel.prototype.save = vi.fn().mockResolvedValue({ _id: 't-2' })
     TaskModel.prototype.populate = vi.fn().mockResolvedValue({
       _id: 't-2',

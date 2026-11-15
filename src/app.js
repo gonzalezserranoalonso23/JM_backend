@@ -1,28 +1,19 @@
+/**
+ * HTTP application, without opening a port.
+ * server.js connects to Mongo and listens. Tests import this file directly.
+ * Routes are mounted by registerRoutes. Unknown paths and failures run after that,
+ * in that order, so a missing route does not look like a server error.
+ */
 import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
 import compression from 'compression'
 import helmet from 'helmet'
+import { registerRoutes } from './routes/index.js'
+import { handleErrors, notFound } from './middleware/handleErrors.js'
 
 const app = express()
-
-import usersRouter from './modules/users/users.routes.js'
-import categoriesRouter from './modules/categories/categories.routes.js'
-import suppliersRouter from './modules/suppliers/suppliers.routes.js'
-import productsRouter from './modules/products/products.routes.js'
-import typeInventoryRouter from './modules/type-inventory/type-inventory.routes.js'
-import paymentTypesRouter from './modules/payment-types/payment-types.routes.js'
-import inventoryRecordsRouter from './modules/inventory-records/inventory-records.routes.js'
-import dailyInformationRouter from './modules/daily-information/daily-information.routes.js'
-import ordersRouter from './modules/orders/orders.routes.js'
-import tasksRouter from './modules/tasks/tasks.routes.js'
-import pushNotificationsRouter from './modules/push-notifications/push-notifications.routes.js'
-import denominationsRouter from './modules/denominations/denominations.routes.js'
-import attendanceRouter from './modules/attendance/attendance.routes.js'
-import rolesRouter from './modules/roles/roles.routes.js'
-import appStateRouter from './modules/app-state/app-state.routes.js'
-import { handleErrors, notFound } from './middlewares/handleErrors.js'
 
 dotenv.config()
 app.use(morgan('tiny'))
@@ -52,21 +43,7 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }))
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Bienvenido a la API de MiscelaniaJM' })
 })
-app.use('/api/users', usersRouter)
-app.use('/api/type-inventory', typeInventoryRouter)
-app.use('/api/payment-types', paymentTypesRouter)
-app.use('/api/categories', categoriesRouter)
-app.use('/api/suppliers', suppliersRouter)
-app.use('/api/products', productsRouter)
-app.use('/api/inventory-records', inventoryRecordsRouter)
-app.use('/api/daily-information', dailyInformationRouter)
-app.use('/api/orders', ordersRouter)
-app.use('/api/tasks', tasksRouter)
-app.use('/api/push', pushNotificationsRouter)
-app.use('/api/denominations', denominationsRouter)
-app.use('/api/attendance', attendanceRouter)
-app.use('/api/roles', rolesRouter)
-app.use('/api/app', appStateRouter)
+registerRoutes(app)
 
 app.use(notFound)
 app.use(handleErrors)

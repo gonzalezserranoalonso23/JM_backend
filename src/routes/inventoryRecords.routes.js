@@ -1,0 +1,33 @@
+import { Router } from 'express'
+import {
+  getInventoryRecord,
+  getInventoryRecords,
+  createInventoryRecord,
+  createInventoryRecords,
+  updateInventoryRecord,
+  deleteInventoryRecord,
+  getLiveInformation,
+  getDailySalesSummary,
+  getLowStockProducts,
+  getSalesByDateRange,
+  getInventoryByType,
+  getInventoryStats
+} from '../controllers/inventoryRecords.controller.js'
+import verifyToken, { requireAdmin } from '../middleware/verifyToken.js'
+
+const router = Router()
+
+router.get('/', verifyToken, getInventoryRecords)
+router.get('/liveInformation', verifyToken, getLiveInformation)
+router.get('/reports/daily-summary', verifyToken, getDailySalesSummary)
+router.get('/reports/low-stock', verifyToken, getLowStockProducts)
+router.get('/reports/date-range', verifyToken, getSalesByDateRange)
+router.get('/reports/by-type', verifyToken, getInventoryByType)
+router.get('/reports/stats', verifyToken, getInventoryStats)
+router.get('/:id', verifyToken, getInventoryRecord)
+router.post('/bulk', verifyToken, createInventoryRecords)
+router.post('/', verifyToken, createInventoryRecord)
+router.put('/:id', verifyToken, updateInventoryRecord)
+router.delete('/:id', verifyToken, requireAdmin, deleteInventoryRecord)
+
+export default router

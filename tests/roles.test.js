@@ -3,8 +3,8 @@ import RoleModel, {
   ROLE_NAMES,
   grantsFullAccess,
   roleRank
-} from '../src/modules/roles/roles.model.js'
-import UserModel from '../src/modules/users/users.model.js'
+} from '../src/models/roles.model.js'
+import UserModel from '../src/models/users.model.js'
 
 describe('Roles', () => {
   it('guarda Sudo, Manager, Supervisor, Staff y User, y el usuario apunta a ese id', () => {

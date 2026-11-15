@@ -99,62 +99,70 @@ vi.mock('bcryptjs', () => ({
   }
 }))
 
-vi.mock('../src/modules/categories/categories.model.js', () => ({
+vi.mock('../src/models/categories.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/daily-information/daily-information.model.js', () => ({
+vi.mock('../src/models/dailyInformation.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/inventory-records/inventory-records.model.js', () => ({
+vi.mock('../src/models/inventoryRecords.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/orders/orders.model.js', () => ({
+vi.mock('../src/models/orders.model.js', () => ({
+  default: makeModel(),
+  ORDER_STATUS: { pending: 'pendiente', confirmed: 'confirmado' }
+}))
+vi.mock('../src/models/products.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/products/products.model.js', () => ({
+vi.mock('../src/models/suppliers.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/suppliers/suppliers.model.js', () => ({
-  default: makeModel()
-}))
-vi.mock('../src/modules/tasks/tasks.model.js', () => ({
+vi.mock('../src/models/tasks.model.js', () => ({
   default: makeModel(),
   TASK_STATUS: { pending: 'pending', completed: 'completed' },
   TASK_PRIORITY: { low: 'low', medium: 'medium', high: 'high' }
 }))
-vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
+vi.mock('../src/models/typeInventory.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
+vi.mock('../src/models/paymentTypes.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/modules/users/users.model.js', () => ({ default: makeModel() }))
+vi.mock('../src/models/users.model.js', () => ({ default: makeModel() }))
+vi.mock('../src/models/roles.model.js', async () => {
+  const actual = await vi.importActual('../src/models/roles.model.js')
+  return {
+    ...actual,
+    findSudoRoleId: vi.fn().mockResolvedValue(null)
+  }
+})
 vi.mock(
-  '../src/modules/push-notifications/push-notifications.model.js',
+  '../src/models/pushNotifications.model.js',
   () => ({
     default: makeModel()
   })
 )
 
-import CategoriesRouter from '../src/modules/categories/categories.routes.js'
-import DailyInformationRouter from '../src/modules/daily-information/daily-information.routes.js'
-import InventoryRecordRouter from '../src/modules/inventory-records/inventory-records.routes.js'
-import OrdersRouter from '../src/modules/orders/orders.routes.js'
-import ProductsRouter from '../src/modules/products/products.routes.js'
-import SuppliersRouter from '../src/modules/suppliers/suppliers.routes.js'
-import TasksRouter from '../src/modules/tasks/tasks.routes.js'
-import TypeInventoryRouter from '../src/modules/type-inventory/type-inventory.routes.js'
-import UsersRouter from '../src/modules/users/users.routes.js'
-import PushNotificationsRouter from '../src/modules/push-notifications/push-notifications.routes.js'
-import CategoriesModel from '../src/modules/categories/categories.model.js'
-import DailyInformationModel from '../src/modules/daily-information/daily-information.model.js'
-import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
-import OrdersModel from '../src/modules/orders/orders.model.js'
-import ProductModel from '../src/modules/products/products.model.js'
-import SupplierModel from '../src/modules/suppliers/suppliers.model.js'
-import TaskModel from '../src/modules/tasks/tasks.model.js'
-import TypeInventoryModel from '../src/modules/type-inventory/type-inventory.model.js'
-import UserModel from '../src/modules/users/users.model.js'
+import CategoriesRouter from '../src/routes/categories.routes.js'
+import DailyInformationRouter from '../src/routes/dailyInformation.routes.js'
+import InventoryRecordRouter from '../src/routes/inventoryRecords.routes.js'
+import OrdersRouter from '../src/routes/orders.routes.js'
+import ProductsRouter from '../src/routes/products.routes.js'
+import SuppliersRouter from '../src/routes/suppliers.routes.js'
+import TasksRouter from '../src/routes/tasks.routes.js'
+import TypeInventoryRouter from '../src/routes/typeInventory.routes.js'
+import UsersRouter from '../src/routes/users.routes.js'
+import PushNotificationsRouter from '../src/routes/pushNotifications.routes.js'
+import CategoriesModel from '../src/models/categories.model.js'
+import DailyInformationModel from '../src/models/dailyInformation.model.js'
+import InventoryRecordModel from '../src/models/inventoryRecords.model.js'
+import OrdersModel from '../src/models/orders.model.js'
+import ProductModel from '../src/models/products.model.js'
+import SupplierModel from '../src/models/suppliers.model.js'
+import TaskModel from '../src/models/tasks.model.js'
+import TypeInventoryModel from '../src/models/typeInventory.model.js'
+import UserModel from '../src/models/users.model.js'
 
 const routers = [
   ['/api/users', UsersRouter],

@@ -5,7 +5,7 @@ import {
   handleErrors,
   normalizeError,
   publicFailure
-} from '../src/middlewares/handleErrors.js'
+} from '../src/middleware/handleErrors.js'
 
 const mockRes = () => {
   const res = {

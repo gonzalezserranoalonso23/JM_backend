@@ -6,8 +6,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server'
 import {
   mexicoCityDate,
   mexicoCityWeekday
-} from '../src/modules/attendance/attendance.controller.js'
-import { ORDER_STATUS } from '../src/modules/orders/orders.model.js'
+} from '../src/controllers/attendance.controller.js'
+import { ORDER_STATUS } from '../src/models/orders.model.js'
 
 const weekSchedule = (enabledDay) =>
   Object.fromEntries(
@@ -333,12 +333,19 @@ describe('Integración con MongoDB real', () => {
     expect(users.status).toBe(200)
     expect(users.body[0].password).toBeUndefined()
 
+    const cajero = await mongoose.model('User').findOne({ username: 'cajero' })
     const created = await api('post', '/api/tasks').send({
       title: 'Revisar bodega',
-      assignedTo: userId
+      assignedTo: String(cajero._id)
     })
     expect(created.status, JSON.stringify(created.body)).toBe(201)
-    expect(created.body.assignedTo.username).toBe('admin')
+    expect(created.body.assignedTo.username).toBe('cajero')
+
+    const sudoAssigned = await api('post', '/api/tasks').send({
+      title: 'No va al sudo',
+      assignedTo: userId
+    })
+    expect(sudoAssigned.status).toBe(400)
 
     const unassigned = await api('put', `/api/tasks/${created.body._id}`).send({
       assignedTo: null

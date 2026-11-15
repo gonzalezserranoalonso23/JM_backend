@@ -13,7 +13,7 @@ vi.mock('jsonwebtoken', () => ({
   }
 }))
 
-vi.mock('../src/modules/products/products.model.js', () => ({
+vi.mock('../src/models/products.model.js', () => ({
   default: {
     findById: vi.fn(),
     findOneAndUpdate: vi.fn(),
@@ -22,13 +22,13 @@ vi.mock('../src/modules/products/products.model.js', () => ({
   }
 }))
 
-vi.mock('../src/modules/daily-information/daily-information.model.js', () => ({
+vi.mock('../src/models/dailyInformation.model.js', () => ({
   default: {
     findOne: vi.fn()
   }
 }))
 
-vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
+vi.mock('../src/models/typeInventory.model.js', () => ({
   default: {
     findById: vi.fn((id) =>
       Promise.resolve({
@@ -41,20 +41,20 @@ vi.mock('../src/modules/type-inventory/type-inventory.model.js', () => ({
   }
 }))
 
-vi.mock('../src/modules/payment-types/payment-types.model.js', () => ({
+vi.mock('../src/models/paymentTypes.model.js', () => ({
   default: {
     findById: vi.fn(),
     find: vi.fn()
   }
 }))
 
-vi.mock('../src/modules/users/users.model.js', () => ({
+vi.mock('../src/models/users.model.js', () => ({
   default: {
     findOne: vi.fn()
   }
 }))
 
-vi.mock('../src/modules/inventory-records/inventory-records.model.js', () => {
+vi.mock('../src/models/inventoryRecords.model.js', () => {
   class InventoryRecordMock {
     static instances = []
 
@@ -77,20 +77,20 @@ vi.mock('../src/modules/inventory-records/inventory-records.model.js', () => {
 
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import Product from '../src/modules/products/products.model.js'
-import InventoryRecordModel from '../src/modules/inventory-records/inventory-records.model.js'
-import DailyInformation from '../src/modules/daily-information/daily-information.model.js'
-import TypeInventory from '../src/modules/type-inventory/type-inventory.model.js'
-import UserModel from '../src/modules/users/users.model.js'
+import Product from '../src/models/products.model.js'
+import InventoryRecordModel from '../src/models/inventoryRecords.model.js'
+import DailyInformation from '../src/models/dailyInformation.model.js'
+import TypeInventory from '../src/models/typeInventory.model.js'
+import UserModel from '../src/models/users.model.js'
 import {
   createInventoryRecord,
   getLiveInformation,
   getDailySalesSummary,
   getLowStockProducts,
   getInventoryStats
-} from '../src/modules/inventory-records/inventory-records.controller.js'
-import { loginUser } from '../src/modules/users/users.controller.js'
-import { getPromotionProducts } from '../src/modules/products/products.controller.js'
+} from '../src/controllers/inventoryRecords.controller.js'
+import { loginUser } from '../src/controllers/users.controller.js'
+import { getPromotionProducts } from '../src/controllers/products.controller.js'
 
 const ENTRY_TYPE_ID = '507f1f77bcf86cd799439014'
 const ISSUE_TYPE_ID = '507f1f77bcf86cd799439015'
