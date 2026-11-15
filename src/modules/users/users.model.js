@@ -35,11 +35,6 @@ const userSchema = createSchema({
     type: String,
     required: [true, 'Proporcionar una contraseña']
   },
-  email: {
-    type: String,
-    required: [true, 'Proporcionar un correo electronico'],
-    unique: true
-  },
   fullName: {
     type: String
   },
@@ -77,5 +72,15 @@ export const dropLegacyAdminFlag = () =>
     { isAdmin: { $exists: true } },
     { $unset: { isAdmin: '' } }
   )
+
+export const dropLegacyEmail = async () => {
+  const indexes = await UserModel.collection.indexes()
+  const emailIndex = indexes.find((index) => index.key?.email)
+  if (emailIndex) await UserModel.collection.dropIndex(emailIndex.name)
+  await UserModel.collection.updateMany(
+    { email: { $exists: true } },
+    { $unset: { email: '' } }
+  )
+}
 
 export default UserModel

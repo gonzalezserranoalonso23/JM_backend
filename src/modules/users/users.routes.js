@@ -12,7 +12,10 @@ import {
   revokeUserSessions
 } from './users.controller.js'
 import rateLimit from 'express-rate-limit'
-import verifyToken, { requireAdmin } from '../../middlewares/verifyToken.js'
+import verifyToken, {
+  requireAdmin,
+  requireSudo
+} from '../../middlewares/verifyToken.js'
 
 const router = Router()
 const loginLimiter = rateLimit({
@@ -25,7 +28,7 @@ const loginLimiter = rateLimit({
 })
 router.post('/login', loginLimiter, loginUser)
 router.post('/logout', verifyToken, logoutUser)
-router.post('/:id/logout', verifyToken, requireAdmin, revokeUserSessions)
+router.post('/:id/logout', verifyToken, requireSudo, revokeUserSessions)
 router.post('/register', verifyToken, requireAdmin, registerUser)
 router.get('/assignable', verifyToken, getAssignableUsers)
 router.get('/me', verifyToken, getCurrentUser)

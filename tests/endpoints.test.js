@@ -77,7 +77,7 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
 
       static findAuthState = vi
         .fn()
-        .mockResolvedValue({ tokenVersion: 0, role: { name: 'Manager' } })
+        .mockResolvedValue({ tokenVersion: 0, role: { name: 'Sudo' } })
 
       static deleteMany = vi.fn().mockResolvedValue({ deletedCount: 1 })
 
@@ -513,8 +513,7 @@ describe('HTTP endpoint coverage', () => {
     expect(UserModel.find).toHaveBeenLastCalledWith({
       $or: [
         { username: { $regex: 'ana\\+', $options: 'i' } },
-        { fullName: { $regex: 'ana\\+', $options: 'i' } },
-        { email: { $regex: 'ana\\+', $options: 'i' } }
+        { fullName: { $regex: 'ana\\+', $options: 'i' } }
       ]
     })
   })

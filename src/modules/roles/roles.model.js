@@ -1,11 +1,39 @@
 import mongoose from 'mongoose'
 import { createSchema } from '../../database/createSchema.js'
 
-export const ROLE_NAMES = ['Manager', 'Supervisor', 'Staff', 'User']
+export const ROLE_NAMES = ['Sudo', 'Manager', 'Supervisor', 'Staff', 'User']
 
-export const FULL_ACCESS_ROLES = ['Manager', 'Supervisor']
+export const FULL_ACCESS_ROLES = ['Sudo', 'Manager', 'Supervisor']
+
+export const SUDO_USERNAME = 'glezalonso23'
 
 export const grantsFullAccess = (name) => FULL_ACCESS_ROLES.includes(name)
+
+export const isSudo = (name) => name === 'Sudo'
+
+const ASSIGNABLE_ROLES = {
+  Sudo: ROLE_NAMES,
+  Manager: ['Manager', 'Supervisor', 'Staff', 'User'],
+  Supervisor: ['Supervisor', 'Staff', 'User']
+}
+
+export const SCHEDULE_ROLES = ['Supervisor', 'Staff', 'User']
+
+export const rolesAssignableBy = (actor) => ASSIGNABLE_ROLES[actor] || []
+
+export const keepsSchedule = (name) => SCHEDULE_ROLES.includes(name)
+
+// Display order is the privilege list turned around: User first, Sudo last.
+export const roleRank = (name) => {
+  const index = ROLE_NAMES.indexOf(name)
+  if (index === -1) return ROLE_NAMES.length
+  return ROLE_NAMES.length - 1 - index
+}
+
+export const findSudoRoleId = async () => {
+  const role = await RoleModel.findOne({ name: 'Sudo' }).select('_id').lean()
+  return role?._id || null
+}
 
 const roleSchema = createSchema({
   name: {
@@ -13,10 +41,7 @@ const roleSchema = createSchema({
     required: [true, 'Proporcionar un rol'],
     unique: true,
     trim: true,
-    enum: {
-      values: ROLE_NAMES,
-      message: 'El rol debe ser Manager, Supervisor, Staff o User'
-    }
+    maxlength: [40, 'El rol es demasiado largo']
   }
 })
 
@@ -32,5 +57,15 @@ export const ensureRoles = () =>
       )
     )
   )
+
+export const ensureSudoOwner = async () => {
+  const { default: UserModel } = await import('../users/users.model.js')
+  const role = await RoleModel.findOne({ name: 'Sudo' }).select('_id')
+  if (!role) return
+  await UserModel.updateOne(
+    { username: SUDO_USERNAME },
+    { $set: { role: role._id } }
+  )
+}
 
 export default RoleModel

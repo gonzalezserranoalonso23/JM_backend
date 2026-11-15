@@ -1,9 +1,19 @@
 import jwt from 'jsonwebtoken'
 import User from '../modules/users/users.model.js'
-import { grantsFullAccess } from '../modules/roles/roles.model.js'
+import { grantsFullAccess, isSudo } from '../modules/roles/roles.model.js'
+import { isShutdown } from '../modules/app-state/app-state.js'
 
 const unauthorized = (res) =>
-  res.status(401).json({ message: 'Token inválido o expirado' })
+  res.status(401).json({
+    message: 'Token inválido o expirado',
+    ...(isShutdown() ? { shutdown: true } : {})
+  })
+
+const disconnected = (res) =>
+  res.status(503).json({
+    message: 'La aplicación está desconectada',
+    shutdown: true
+  })
 
 // Checks signature, expiry, tokenVersion, and the current role.
 export const verifyToken = (req, res, next) => {
@@ -25,6 +35,7 @@ export const verifyToken = (req, res, next) => {
         req.user = decoded
         req.userId = decoded.id
         req.role = user.role?.name || ''
+        if (isShutdown() && !isSudo(req.role)) return disconnected(res)
         next()
       } catch (error) {
         console.error(error)
@@ -37,6 +48,13 @@ export const verifyToken = (req, res, next) => {
 export const requireAdmin = (req, res, next) => {
   if (!grantsFullAccess(req.role)) {
     return res.status(403).json({ message: 'Acceso solo para administradores' })
+  }
+  next()
+}
+
+export const requireSudo = (req, res, next) => {
+  if (!isSudo(req.role)) {
+    return res.status(403).json({ message: 'Acceso solo para sudo' })
   }
   next()
 }

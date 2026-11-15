@@ -68,12 +68,13 @@ beforeAll(async () => {
   mongod = await MongoMemoryServer.create()
   await mongoose.connect(mongod.getUri(), { dbName: 'jm_test' })
   app = (await import('../src/app.js')).default
-  const manager = await mongoose.model('Role').create({ name: 'Manager' })
+  const sudo = await mongoose.model('Role').create({ name: 'Sudo' })
+  await mongoose.model('Role').create({ name: 'Manager' })
   const user = await mongoose.model('User').create({
     username: 'admin',
     password: 'x',
     email: 'admin@jm.test',
-    role: manager._id
+    role: sudo._id
   })
   userId = String(user._id)
   const [entryType, issueType, cashPaymentType, cardPaymentType] =

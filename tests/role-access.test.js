@@ -24,7 +24,7 @@ import { ROLE_NAMES } from '../src/modules/roles/roles.model.js'
 
 process.env.SECURITY_JM = 'role-access-secret'
 
-const FULL_ACCESS = ['Manager', 'Supervisor']
+const FULL_ACCESS = ['Sudo', 'Manager', 'Supervisor']
 const LIMITED = ['Staff', 'User']
 const MISSING_ID = '507f1f77bcf86cd799439011'
 
@@ -63,7 +63,6 @@ const FULL_ACCESS_ROUTES = new Set([
   'POST /api/users/register',
   'PUT /api/users/:id',
   'DELETE /api/users/:id',
-  'POST /api/users/:id/logout',
   'DELETE /api/inventory-records/:id',
   'DELETE /api/orders/:id',
   'POST /api/denominations/open',
@@ -105,6 +104,9 @@ const registeredRoutes = () => {
       const admin = layer.route.stack.some(
         (item) => item.name === 'requireAdmin'
       )
+      const sudo = layer.route.stack.some(
+        (item) => item.name === 'requireSudo'
+      )
       const token = layer.route.stack.some(
         (item) => item.name === 'verifyToken'
       )
@@ -115,6 +117,7 @@ const registeredRoutes = () => {
           method: method.toUpperCase(),
           path,
           admin,
+          sudo,
           token,
           key: `${method.toUpperCase()} ${path}`
         })
@@ -180,7 +183,7 @@ describe('acceso por rol', () => {
     expect(cleaned.role).toBeTruthy()
   })
 
-  it('requireAdmin cubre solo crear, editar, eliminar y la gestión de usuarios', () => {
+  it('requireAdmin cubre crear, editar y eliminar', () => {
     const routes = registeredRoutes()
     const adminRoutes = routes
       .filter((route) => route.admin)
@@ -293,5 +296,130 @@ describe('acceso por rol', () => {
       const order = await call(name, 'post', '/api/orders')
       expect(order.status, name).toBe(400)
     }
+  })
+
+  it('sudo no aparece para los demás ni recibe pendientes', async () => {
+    const visible = await call('Sudo', 'get', '/api/users')
+    const sudoUser = visible.body.find((user) => user.username === 'sudo')
+    expect(sudoUser?.role?.name).toBe('Sudo')
+
+    for (const name of ['Manager', 'Supervisor', 'Staff', 'User']) {
+      const list = await call(name, 'get', '/api/users')
+      const names = Array.isArray(list.body) ? list.body : list.body.data
+      expect(list.status, name).toBe(name === 'Staff' || name === 'User' ? 403 : 200)
+      if (list.status === 200) {
+        expect(names.some((user) => user.role?.name === 'Sudo')).toBe(false)
+      }
+      const one = await call(name, 'get', `/api/users/${sudoUser._id}`)
+      expect(one.status, name).toBe(name === 'Staff' || name === 'User' ? 403 : 404)
+    }
+
+    for (const name of ROLE_NAMES) {
+      const assignable = await call(name, 'get', '/api/users/assignable')
+      expect(assignable.status, name).toBe(200)
+      expect(
+        assignable.body.some((user) => user.username === 'sudo')
+      ).toBe(false)
+    }
+
+    const assigned = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ title: 'Para sudo', assignedTo: sudoUser._id })
+    expect(assigned.status).toBe(400)
+  })
+
+  it('solo sudo cierra sesiones y administra roles', async () => {
+    const reserved = registeredRoutes().filter((route) => route.sudo)
+    expect(reserved.map((route) => route.key).sort()).toEqual(
+      [
+        'POST /api/users/:id/logout',
+        'POST /api/roles',
+        'PUT /api/roles/:id',
+        'DELETE /api/roles/:id'
+      ].sort()
+    )
+    for (const name of ['Manager', 'Supervisor', ...LIMITED]) {
+      for (const route of reserved) {
+        const res = await call(
+          name,
+          route.method.toLowerCase(),
+          withId(route.path)
+        )
+        expect(res.status, `${name} ${route.key}`).toBe(403)
+        expect(res.body.message).toBe('Acceso solo para sudo')
+      }
+    }
+    const list = await call('Manager', 'get', '/api/users')
+    expect(list.status, JSON.stringify(list.body)).toBe(200)
+  })
+
+  it('manager no asigna sudo y supervisor no asigna administradores', async () => {
+    const roles = await call('Manager', 'get', '/api/roles')
+    const roleId = (name) => roles.body.find((role) => role.name === name)._id
+    const denied = await request(app)
+      .post('/api/users/register')
+      .set('Authorization', `Bearer ${tokens.Manager}`)
+      .send({
+        username: 'otro-sudo',
+        password: 'abc12345',
+        role: roleId('Sudo')
+      })
+    expect(denied.status).toBe(403)
+
+    const supervisorDenied = await request(app)
+      .post('/api/users/register')
+      .set('Authorization', `Bearer ${tokens.Supervisor}`)
+      .send({
+        username: 'otro-manager',
+        password: 'abc12345',
+        role: roleId('Manager')
+      })
+    expect(supervisorDenied.status).toBe(403)
+
+    const created = await request(app)
+      .post('/api/users/register')
+      .set('Authorization', `Bearer ${tokens.Supervisor}`)
+      .send({
+        username: 'cajero-nuevo',
+        password: 'abc12345',
+        role: roleId('Staff')
+      })
+    expect(created.status, JSON.stringify(created.body)).toBe(201)
+  })
+
+  it('sudo crea un rol y no cambia los del sistema', async () => {
+    const created = await request(app)
+      .post('/api/roles')
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ name: 'Cajero' })
+    expect(created.status, JSON.stringify(created.body)).toBe(201)
+    expect(created.body.locked).toBe(false)
+
+    const list = await call('Staff', 'get', '/api/roles')
+    const staff = list.body.find((role) => role.name === 'Staff')
+    expect(staff.locked).toBe(true)
+
+    const renamed = await request(app)
+      .put(`/api/roles/${staff._id}`)
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ name: 'Otro' })
+    expect(renamed.status).toBe(403)
+
+    const blocked = await request(app)
+      .delete(`/api/roles/${staff._id}`)
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+    expect(blocked.status).toBe(403)
+
+    const edited = await request(app)
+      .put(`/api/roles/${created.body._id}`)
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ name: 'Cajero 2' })
+    expect(edited.status, JSON.stringify(edited.body)).toBe(200)
+
+    const removed = await request(app)
+      .delete(`/api/roles/${created.body._id}`)
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+    expect(removed.status).toBe(200)
   })
 })

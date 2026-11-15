@@ -2,21 +2,28 @@
  * Users and auth. Base: /api/users
  *
  * POST   /login       { username, password }. Public, 10 attempts / 15 min.
- * POST   /register    { username, password, email, fullName, role, haveSchedule, schedule }. Full access.
+ * POST   /register    { username, password, fullName, role, haveSchedule, schedule }. Full access.
  * GET    /assignable  { username, fullName } for task assignment.
  * GET    /me          Signed-in profile, including schedule.
  * GET    /            query { page, limit, search }. Full access.
  * GET    /:id         params { id }. Full access.
- * PUT    /:id         params { id }, { username, password, email, fullName, role, haveSchedule, schedule }.
+ * PUT    /:id         params { id }, { username, password, fullName, role, haveSchedule, schedule }. Full access.
  * DELETE /:id         params { id }. Full access.
  * POST   /logout      Closes the signed-in sessions.
- * POST   /:id/logout  Full access closes a Staff or User session.
+ * POST   /:id/logout  Sudo closes another session. A Sudo account stays open.
  * password is never returned.
  */
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import UserModel from './users.model.js'
-import RoleModel, { grantsFullAccess } from '../roles/roles.model.js'
+import RoleModel, {
+  SUDO_USERNAME,
+  findSudoRoleId,
+  isSudo,
+  keepsSchedule,
+  rolesAssignableBy
+} from '../roles/roles.model.js'
+import { isShutdown } from '../app-state/app-state.js'
 import { isValidObjectId } from 'mongoose'
 import dotenv from 'dotenv'
 import {
@@ -29,9 +36,18 @@ dotenv.config()
 
 const TOKEN_TTL = process.env.TOKEN_TTL || '7d'
 
+const withoutSudo = async () => {
+  const sudoId = await findSudoRoleId()
+  if (!sudoId) return {}
+  return { role: { $ne: sudoId } }
+}
+
+const sudoIsHidden = (actorRole, user) =>
+  !isSudo(actorRole) && isSudo(user?.role?.name)
+
 const getAssignableUsers = async (req, res) => {
   try {
-    const users = await UserModel.find({}, USER_FIELDS)
+    const users = await UserModel.find(await withoutSudo(), USER_FIELDS)
       .sort({ username: 1 })
       .lean()
     res.status(200).json(users)
@@ -51,13 +67,12 @@ const getUsers = async (req, res) => {
 
   try {
     const search = req.query?.search?.trim()
-    const filter = search
-      ? {
-          $or: ['username', 'fullName', 'email'].map((field) => ({
-            [field]: { $regex: escapeRegex(search), $options: 'i' }
-          }))
-        }
-      : {}
+    const filter = isSudo(req.role) ? {} : await withoutSudo()
+    if (search) {
+      filter.$or = ['username', 'fullName'].map((field) => ({
+        [field]: { $regex: escapeRegex(search), $options: 'i' }
+      }))
+    }
     const query = withRole(
       UserModel.find(filter).select('-password -tokenVersion')
     )
@@ -106,7 +121,8 @@ const getUser = async (req, res) => {
     const data = await withRole(
       UserModel.findById(id).select('-password -tokenVersion')
     )
-    if (!data) return res.status(404).json({ message: 'Usuario no encontrado' })
+    if (!data || sudoIsHidden(req.role, data))
+      return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json(data)
   } catch (error) {
     console.error(error)
@@ -144,6 +160,12 @@ const loginUser = async (req, res) => {
         .json({ message: 'Usuario y/o contraseña no válida' })
 
     const roleName = existUser.role?.name || ''
+    if (isShutdown() && !isSudo(roleName)) {
+      return res.status(503).json({
+        message: 'La aplicación está desconectada',
+        shutdown: true
+      })
+    }
     const token = jwt.sign(
       {
         id: existUser._id,
@@ -183,6 +205,39 @@ const readRole = async (value) => {
     throw error
   }
   return { id: role._id, name: role.name }
+}
+
+const guardAssignable = (actorRole, nextRole, existing) => {
+  const allowed = new Set(rolesAssignableBy(actorRole))
+  if (existing?.role?.name && !allowed.has(existing.role.name)) {
+    const error = new Error('No puedes editar ese usuario')
+    error.status = 403
+    throw error
+  }
+  if (nextRole && !allowed.has(nextRole.name)) {
+    const error = new Error('No puedes asignar ese rol')
+    error.status = 403
+    throw error
+  }
+}
+
+const guardSudoRole = (role, username, existing, actorId) => {
+  if (existing?.username === SUDO_USERNAME && username !== SUDO_USERNAME) {
+    const error = new Error('Ese usuario no se puede renombrar')
+    error.status = 400
+    throw error
+  }
+  const ownAccount = existing && String(existing._id) === String(actorId)
+  if (
+    ownAccount &&
+    existing.role?.name === 'Sudo' &&
+    role &&
+    role.name !== 'Sudo'
+  ) {
+    const error = new Error('No puedes quitarte el rol Sudo')
+    error.status = 400
+    throw error
+  }
 }
 
 const asBoolean = (value) => {
@@ -234,27 +289,25 @@ const sendUserError = (res, error, fallback) => {
 }
 
 const registerUser = async (req, res) => {
-  const { username, password, email, fullName } = req.body
-  if (!username || !password || !email)
+  const { username, password, fullName } = req.body
+  if (!username || !password)
     return res
       .status(400)
-      .json({ message: 'Usuario, contraseña y email son requeridos' })
+      .json({ message: 'Usuario y contraseña son requeridos' })
   try {
     const existUser = await UserModel.findOne({ username })
     if (existUser)
       return res.status(409).json({ message: 'El usuario ya existe' })
 
-    const existEmail = await UserModel.findOne({ email })
-    if (existEmail)
-      return res.status(409).json({ message: 'El email ya está registrado' })
-
     const passCrypt = await bcrypt.hash(password, 10)
-    const withSchedule = asBoolean(req.body.haveSchedule) === true
     const role = await readRole(req.body.role)
+    guardSudoRole(role, username)
+    guardAssignable(req.role, role)
+    const withSchedule =
+      keepsSchedule(role?.name) && asBoolean(req.body.haveSchedule) === true
     const newUser = new UserModel({
       username,
       password: passCrypt,
-      email,
       fullName,
       ...(role ? { role: role.id } : {}),
       haveSchedule: withSchedule,
@@ -273,15 +326,25 @@ const updateUser = async (req, res) => {
   const { id } = req.params
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
-  const { username, password, email, fullName } = req.body
+  const { username, password, fullName } = req.body
   try {
     // password is optional on edit. Only sent fields change.
-    const haveSchedule = asBoolean(req.body.haveSchedule)
+    const existing = await UserModel.findById(id)
+      .select('username role')
+      .populate('role', 'name')
+    if (!existing || sudoIsHidden(req.role, existing))
+      return res.status(404).json({ message: 'Usuario no encontrado' })
     const role = await readRole(req.body.role)
+    guardSudoRole(role, username || existing.username, existing, req.userId)
+    guardAssignable(req.role, role, existing)
+    const effectiveRole = role?.name || existing.role?.name
+    const haveSchedule =
+      effectiveRole && !keepsSchedule(effectiveRole)
+        ? false
+        : asBoolean(req.body.haveSchedule)
     const update = Object.fromEntries(
       Object.entries({
         username,
-        email,
         fullName,
         role: role ? role.id : undefined,
         haveSchedule
@@ -334,9 +397,9 @@ const revokeUserSessions = async (req, res) => {
     const target = await UserModel.findById(id).populate('role', 'name')
     if (!target)
       return res.status(404).json({ message: 'Usuario no encontrado' })
-    if (grantsFullAccess(target.role?.name)) {
+    if (isSudo(target.role?.name)) {
       return res.status(403).json({
-        message: 'No se pueden cerrar las sesiones de un administrador'
+        message: 'No se pueden cerrar las sesiones de sudo'
       })
     }
     await UserModel.updateOne({ _id: id }, { $inc: { tokenVersion: 1 } })
@@ -354,15 +417,18 @@ const deleteUser = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
+    const existing = await UserModel.findById(id)
+      .select('role')
+      .populate('role', 'name')
+    if (!existing || sudoIsHidden(req.role, existing))
+      return res.status(404).json({ message: 'Usuario no encontrado' })
+    guardAssignable(req.role, undefined, existing)
     const data = await UserModel.deleteOne({ _id: id })
     if (data.deletedCount === 0)
       return res.status(404).json({ message: 'Usuario no encontrado' })
     res.status(200).json({ message: 'Usuario eliminado exitosamente' })
   } catch (error) {
-    console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al eliminar el usuario' })
+    sendUserError(res, error, 'Error al eliminar el usuario')
   }
 }
 

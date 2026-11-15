@@ -21,6 +21,7 @@ import pushNotificationsRouter from './modules/push-notifications/push-notificat
 import denominationsRouter from './modules/denominations/denominations.routes.js'
 import attendanceRouter from './modules/attendance/attendance.routes.js'
 import rolesRouter from './modules/roles/roles.routes.js'
+import appStateRouter from './modules/app-state/app-state.routes.js'
 import { handleErrors, notFound } from './middlewares/handleErrors.js'
 
 dotenv.config()
@@ -65,6 +66,7 @@ app.use('/api/push', pushNotificationsRouter)
 app.use('/api/denominations', denominationsRouter)
 app.use('/api/attendance', attendanceRouter)
 app.use('/api/roles', rolesRouter)
+app.use('/api/app', appStateRouter)
 
 app.use(notFound)
 app.use(handleErrors)

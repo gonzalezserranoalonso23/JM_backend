@@ -167,7 +167,10 @@ describe('Route registration smoke tests', () => {
   it('declares all role routes', () => {
     expect(getRoutes(RolesRouter)).toEqual([
       { method: 'GET', path: '/' },
-      { method: 'GET', path: '/:id' }
+      { method: 'GET', path: '/:id' },
+      { method: 'POST', path: '/' },
+      { method: 'PUT', path: '/:id' },
+      { method: 'DELETE', path: '/:id' }
     ])
   })
 

@@ -1,7 +1,11 @@
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
-import { ensureRoles } from '../modules/roles/roles.model.js'
-import { dropLegacyAdminFlag } from '../modules/users/users.model.js'
+import { ensureRoles, ensureSudoOwner } from '../modules/roles/roles.model.js'
+import {
+  dropLegacyAdminFlag,
+  dropLegacyEmail
+} from '../modules/users/users.model.js'
+import { loadAppState } from '../modules/app-state/app-state.js'
 
 dotenv.config()
 
@@ -15,7 +19,10 @@ export const getMongoUri = () => {
 const connection = async () => {
   await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 15000 })
   await ensureRoles()
+  await ensureSudoOwner()
+  await loadAppState()
   await dropLegacyAdminFlag()
+  await dropLegacyEmail()
   console.log(
     `Se ha conectado correctamente a la base de datos ${mongoose.connection.name}`
   )

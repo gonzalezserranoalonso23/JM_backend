@@ -19,7 +19,7 @@ import {
   getPagination
 } from '../../utils/pagination.js'
 import { sendPushToUser } from '../push-notifications/push.service.js'
-import { grantsFullAccess } from '../roles/roles.model.js'
+import { grantsFullAccess, isSudo } from '../roles/roles.model.js'
 
 const asId = (value) => {
   if (!value) return ''
@@ -45,18 +45,49 @@ const notifyAssignee = (userId, task) => {
   }).catch(() => {})
 }
 
+const personPopulate = {
+  select: `${USER_FIELDS} role`,
+  populate: { path: 'role', select: 'name' }
+}
+
 const withUsers = (query) =>
   query
-    .populate('createdBy', USER_FIELDS)
-    .populate('assignedTo', USER_FIELDS)
-    .populate('completedBy', USER_FIELDS)
+    .populate({ path: 'createdBy', ...personPopulate })
+    .populate({ path: 'assignedTo', ...personPopulate })
+    .populate({ path: 'completedBy', ...personPopulate })
 
-// null: unassigned. undefined: missing or unknown user.
+const hideSudoPerson = (person, actorIsSudo) => {
+  if (!person || typeof person !== 'object') return person
+  if (!actorIsSudo && isSudo(person.role?.name)) return null
+  delete person.role
+  return person
+}
+
+const hideSudoPeople = (payload, actorIsSudo) => {
+  const rows = Array.isArray(payload) ? payload : payload?.data
+  if (!Array.isArray(rows)) {
+    if (payload && payload._id) {
+      for (const field of ['createdBy', 'assignedTo', 'completedBy']) {
+        payload[field] = hideSudoPerson(payload[field], actorIsSudo)
+      }
+    }
+    return payload
+  }
+  for (const task of rows) {
+    for (const field of ['createdBy', 'assignedTo', 'completedBy']) {
+      task[field] = hideSudoPerson(task[field], actorIsSudo)
+    }
+  }
+  return payload
+}
+
+// null: unassigned. undefined: missing, unknown, or a Sudo account.
 const resolveAssignee = async (value) => {
   if (value === undefined || value === null || value === '') return null
   if (!isValidObjectId(value)) return undefined
-  const exists = await User.exists({ _id: value })
-  return exists ? value : undefined
+  const user = await User.findById(value).select('role').populate('role', 'name')
+  if (!user || isSudo(user.role?.name)) return undefined
+  return value
 }
 
 const pageOf = async (filter, sort, pagination) => {
@@ -84,7 +115,7 @@ export const getTasks = async (req, res) => {
 
   try {
     const tasks = await pageOf({}, { createdAt: -1 }, pagination)
-    res.status(200).json(tasks)
+    res.status(200).json(hideSudoPeople(tasks, isSudo(req.role)))
   } catch (error) {
     publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
@@ -102,7 +133,7 @@ export const getTask = async (req, res) => {
       return res.status(404).json({ message: 'Pendiente no encontrado' })
     }
 
-    res.status(200).json(task)
+    res.status(200).json(hideSudoPeople(task, isSudo(req.role)))
   } catch (error) {
     publicFailure(res, 500, 'Error al cargar el pendiente', error)
   }
@@ -134,12 +165,12 @@ export const createTask = async (req, res) => {
     await newTask.save()
 
     const populatedTask = await newTask.populate([
-      { path: 'createdBy', select: USER_FIELDS },
-      { path: 'assignedTo', select: USER_FIELDS }
+      { path: 'createdBy', ...personPopulate },
+      { path: 'assignedTo', ...personPopulate }
     ])
 
     notifyAssignee(assignee, populatedTask)
-    res.status(201).json(populatedTask)
+    res.status(201).json(hideSudoPeople(populatedTask, isSudo(req.role)))
   } catch (error) {
     publicFailure(res, 500, 'Error al crear el pendiente', error)
   }
@@ -200,7 +231,7 @@ export const updateTask = async (req, res) => {
       notifyAssignee(nextAssigneeId, updatedTask)
     }
 
-    res.status(200).json(updatedTask)
+    res.status(200).json(hideSudoPeople(updatedTask, isSudo(req.role)))
   } catch (error) {
     publicFailure(res, 500, 'Error al actualizar el pendiente', error)
   }
@@ -246,7 +277,7 @@ export const getPendingTasks = async (req, res) => {
       { createdAt: -1 },
       pagination
     )
-    res.status(200).json(pendingTasks)
+    res.status(200).json(hideSudoPeople(pendingTasks, isSudo(req.role)))
   } catch (error) {
     publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
@@ -264,7 +295,7 @@ export const getCompletedTasks = async (req, res) => {
       { completedAt: -1 },
       pagination
     )
-    res.status(200).json(completedTasks)
+    res.status(200).json(hideSudoPeople(completedTasks, isSudo(req.role)))
   } catch (error) {
     publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }

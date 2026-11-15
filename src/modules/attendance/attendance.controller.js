@@ -10,7 +10,7 @@ import { isValidObjectId } from 'mongoose'
 import Attendance from './attendance.model.js'
 import User from '../users/users.model.js'
 import Supplier from '../suppliers/suppliers.model.js'
-import { grantsFullAccess } from '../roles/roles.model.js'
+import { findSudoRoleId, grantsFullAccess, isSudo } from '../roles/roles.model.js'
 import { roundMoney } from '../../utils/money.js'
 
 const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -247,12 +247,24 @@ const getAttendanceDay = async (req, res) => {
       .json({ message: 'La fecha es requerida con formato YYYY-MM-DD' })
   }
   try {
+    const sudoId = isSudo(role) ? null : await findSudoRoleId()
+    const hiddenIds = sudoId
+      ? (await User.find({ role: sudoId }).select('_id').lean()).map(
+          (user) => user._id
+        )
+      : []
     const [staff, records] = await Promise.all([
-      User.find({ haveSchedule: true })
+      User.find({
+        haveSchedule: true,
+        ...(sudoId ? { role: { $ne: sudoId } } : {})
+      })
         .select(`${USER_FIELDS} schedule`)
         .sort({ username: 1 })
         .lean(),
-      Attendance.find({ date })
+      Attendance.find({
+        date,
+        ...(hiddenIds.length ? { user: { $nin: hiddenIds } } : {})
+      })
         .populate('user', USER_FIELDS)
         .populate('supplierPayments.supplier', SUPPLIER_FIELDS)
         .sort({ checkInAt: 1 })
