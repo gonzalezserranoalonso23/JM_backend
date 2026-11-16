@@ -20,7 +20,7 @@ const supportLimiter = rateLimit({
 
 // Public. The disconnected screen reads this before anyone has a token.
 router.get('/status', getAppStatus)
-// Public. Compares the typed code with Railway_Activate. No verifyToken.
+// Public. Compares the typed code with RAILWAY_ACTIVATE. No verifyToken.
 router.post('/support', supportLimiter, requestSupport)
 router.post('/shutdown', verifyToken, requireSudo, shutdownApp)
 router.post('/startup', verifyToken, requireSudo, startupApp)

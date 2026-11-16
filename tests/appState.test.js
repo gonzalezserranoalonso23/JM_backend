@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken'
 import { MongoMemoryServer } from 'mongodb-memory-server'
 
 process.env.SECURITY_JM = 'app-state-secret'
-process.env.Railway_Activate = '170215'
+process.env.RAILWAY_ACTIVATE = '170215'
 
 let mongod
 let app

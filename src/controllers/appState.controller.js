@@ -44,7 +44,7 @@ export const requestSupport = (req, res) => {
   if (!code) {
     return res.status(400).json({ message: 'El código es requerido' })
   }
-  const expected = String(process.env.Railway_Activate || '')
+  const expected = String(process.env.RAILWAY_ACTIVATE || '').trim()
   if (!expected) {
     return res.status(500).json({ message: 'No se pudo consultar el soporte' })
   }
