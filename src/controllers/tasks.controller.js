@@ -29,7 +29,8 @@ export const getTasks = async (req, res) => {
     })
     res.status(200).json(hideSudoPeople(tasks, isSudo(req.role)))
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
 }
@@ -39,7 +40,8 @@ export const getTask = async (req, res) => {
     const task = await getTaskById(req.params.id)
     res.status(200).json(hideSudoPeople(task, isSudo(req.role)))
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al cargar el pendiente', error)
   }
 }
@@ -52,7 +54,8 @@ export const createTask = async (req, res) => {
     })
     res.status(201).json(hideSudoPeople(populatedTask, isSudo(req.role)))
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al crear el pendiente', error)
   }
 }
@@ -68,7 +71,8 @@ export const updateTask = async (req, res) => {
     })
     res.status(200).json(hideSudoPeople(updatedTask, isSudo(req.role)))
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al actualizar el pendiente', error)
   }
 }
@@ -78,7 +82,8 @@ export const deleteTask = async (req, res) => {
     await deleteTaskRecord({ id: req.params.id, req })
     res.status(200).json({ message: 'Pendiente eliminado' })
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al eliminar el pendiente', error)
   }
 }
@@ -93,7 +98,8 @@ export const getPendingTasks = async (req, res) => {
     const pendingTasks = await listTasksByStatus(TASK_STATUS.pending, req.query)
     res.status(200).json(hideSudoPeople(pendingTasks, isSudo(req.role)))
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
 }
@@ -105,10 +111,14 @@ export const getCompletedTasks = async (req, res) => {
   }
 
   try {
-    const completedTasks = await listTasksByStatus(TASK_STATUS.completed, req.query)
+    const completedTasks = await listTasksByStatus(
+      TASK_STATUS.completed,
+      req.query
+    )
     res.status(200).json(hideSudoPeople(completedTasks, isSudo(req.role)))
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ message: error.message })
+    if (error.status)
+      return res.status(error.status).json({ message: error.message })
     publicFailure(res, 500, 'Error al cargar los pendientes', error)
   }
 }

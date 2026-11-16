@@ -57,7 +57,7 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
 
       static findById = vi.fn(() => makeQuery(makeDocument()))
 
-      static findOne = vi.fn().mockResolvedValue(null)
+      static findOne = vi.fn(() => makeQuery(null))
 
       static findOneAndUpdate = vi.fn(() => makeQuery(makeDocument()))
 
@@ -71,9 +71,11 @@ const { makeModel, makeQuery } = vi.hoisted(() => {
 
       static updateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 })
 
-      static insertMany = vi.fn().mockImplementation(async (docs = []) =>
-        docs.map((doc) => ({ ...makeDocument(), ...doc, _id: id }))
-      )
+      static insertMany = vi
+        .fn()
+        .mockImplementation(async (docs = []) =>
+          docs.map((doc) => ({ ...makeDocument(), ...doc, _id: id }))
+        )
 
       static findAuthState = vi
         .fn()
@@ -137,12 +139,9 @@ vi.mock('../src/models/roles.model.js', async () => {
     findSudoRoleId: vi.fn().mockResolvedValue(null)
   }
 })
-vi.mock(
-  '../src/models/pushNotifications.model.js',
-  () => ({
-    default: makeModel()
-  })
-)
+vi.mock('../src/models/pushNotifications.model.js', () => ({
+  default: makeModel()
+}))
 
 import CategoriesRouter from '../src/routes/categories.routes.js'
 import DailyInformationRouter from '../src/routes/dailyInformation.routes.js'
@@ -341,12 +340,14 @@ describe('HTTP endpoint coverage', () => {
     '$method $url returns the expected response for a valid request',
     async (endpoint) => {
       if (endpoint.url === '/api/users/login') {
-        UserModel.findOne.mockResolvedValueOnce({
-          _id: TEST_ID,
-          username: 'test-user',
-          password: 'test-hash',
-          isAdmin: true
-        })
+        UserModel.findOne.mockReturnValueOnce(
+          makeQuery({
+            _id: TEST_ID,
+            username: 'test-user',
+            password: 'test-hash',
+            isAdmin: true
+          })
+        )
       }
 
       let endpointRequest = request(app)[endpoint.method](endpoint.url)
@@ -477,6 +478,9 @@ describe('HTTP endpoint coverage', () => {
     ['/api/inventory-records/reports/low-stock', ProductModel]
   ])('paginates %s in the backend', async (url, model) => {
     model.find.mockReturnValueOnce(makeQuery([]))
+    if (url === '/api/categories') {
+      model.find.mockReturnValueOnce(makeQuery([]))
+    }
     model.countDocuments.mockResolvedValueOnce(41)
 
     const response = await request(app)

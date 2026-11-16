@@ -7,7 +7,10 @@ import ShiftReminder from '../models/shiftReminder.model.js'
 import User from '../models/users.model.js'
 import PushSubscription from '../models/pushNotifications.model.js'
 import { sendPushToUser } from './pushService.js'
-import { mexicoCityDate, mexicoCityWeekday } from '../controllers/attendance.controller.js'
+import {
+  mexicoCityDate,
+  mexicoCityWeekday
+} from '../controllers/attendance.controller.js'
 
 const LEAD_MINUTES = 10
 const MINUTE = 60 * 1000

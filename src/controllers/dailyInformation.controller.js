@@ -68,7 +68,7 @@ const getDailyInformations = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({
-      message: 'Hubo un error al cargar las informaciones diarias!',
+      message: 'Hubo un error al cargar las informaciones diarias!'
     })
   }
 }
@@ -89,7 +89,7 @@ const getDailyInformation = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Hubo un error al cargar la información diaria!',
+        message: 'Hubo un error al cargar la información diaria!'
       })
     })
 }
@@ -110,7 +110,7 @@ const createDailyInformation = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Ha ocurrido un error al crear la información diaria ',
+        message: 'Ha ocurrido un error al crear la información diaria '
       })
     })
 }
@@ -142,7 +142,7 @@ const updateDailyInformation = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Ha ocurrido un error al actualizar la información diaria',
+        message: 'Ha ocurrido un error al actualizar la información diaria'
       })
     })
 }
@@ -164,7 +164,7 @@ const deleteDailyInformation = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Ha ocurrido un error al eliminar la información diaria',
+        message: 'Ha ocurrido un error al eliminar la información diaria'
       })
     })
 }

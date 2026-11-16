@@ -17,9 +17,7 @@ import pushNotificationsRouter from '../src/routes/pushNotifications.routes.js'
 import denominationsRouter from '../src/routes/denominations.routes.js'
 import attendanceRouter from '../src/routes/attendance.routes.js'
 import rolesRouter from '../src/routes/roles.routes.js'
-import UserModel, {
-  dropLegacyAdminFlag
-} from '../src/models/users.model.js'
+import UserModel, { dropLegacyAdminFlag } from '../src/models/users.model.js'
 import { ROLE_NAMES } from '../src/models/roles.model.js'
 
 process.env.SECURITY_JM = 'role-access-secret'
@@ -104,9 +102,7 @@ const registeredRoutes = () => {
       const admin = layer.route.stack.some(
         (item) => item.name === 'requireAdmin'
       )
-      const sudo = layer.route.stack.some(
-        (item) => item.name === 'requireSudo'
-      )
+      const sudo = layer.route.stack.some((item) => item.name === 'requireSudo')
       const token = layer.route.stack.some(
         (item) => item.name === 'verifyToken'
       )
@@ -306,20 +302,24 @@ describe('acceso por rol', () => {
     for (const name of ['Manager', 'Supervisor', 'Staff', 'User']) {
       const list = await call(name, 'get', '/api/users')
       const names = Array.isArray(list.body) ? list.body : list.body.data
-      expect(list.status, name).toBe(name === 'Staff' || name === 'User' ? 403 : 200)
+      expect(list.status, name).toBe(
+        name === 'Staff' || name === 'User' ? 403 : 200
+      )
       if (list.status === 200) {
         expect(names.some((user) => user.role?.name === 'Sudo')).toBe(false)
       }
       const one = await call(name, 'get', `/api/users/${sudoUser._id}`)
-      expect(one.status, name).toBe(name === 'Staff' || name === 'User' ? 403 : 404)
+      expect(one.status, name).toBe(
+        name === 'Staff' || name === 'User' ? 403 : 404
+      )
     }
 
     for (const name of ROLE_NAMES) {
       const assignable = await call(name, 'get', '/api/users/assignable')
       expect(assignable.status, name).toBe(200)
-      expect(
-        assignable.body.some((user) => user.username === 'sudo')
-      ).toBe(false)
+      expect(assignable.body.some((user) => user.username === 'sudo')).toBe(
+        false
+      )
     }
 
     const assigned = await request(app)

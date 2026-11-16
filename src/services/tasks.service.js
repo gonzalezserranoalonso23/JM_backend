@@ -2,10 +2,7 @@ import { isValidObjectId } from 'mongoose'
 import { USER_FIELDS } from '../utils/projections.js'
 import Task, { TASK_PRIORITY, TASK_STATUS } from '../models/tasks.model.js'
 import User from '../models/users.model.js'
-import {
-  createPaginatedResponse,
-  getPagination
-} from '../utils/pagination.js'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 import { sendPushToUser } from '../utils/pushService.js'
 import { grantsFullAccess, isSudo } from '../models/roles.model.js'
 
@@ -25,12 +22,14 @@ export const canManageTask = (task, req) => {
 const notifyAssignee = (userId, task) => {
   const assigneeId = asId(userId)
   if (!assigneeId || !task) return
-  void sendPushToUser(assigneeId, {
+  sendPushToUser(assigneeId, {
     title: 'Pendiente asignado',
     body: task.title || 'Tienes un pendiente',
     url: '/todolist',
     tag: String(task._id || 'task')
-  }).catch(() => {})
+  }).catch((error) => {
+    console.error('Error al enviar la notificación del pendiente', error)
+  })
 }
 
 const personPopulate = {
@@ -72,7 +71,10 @@ export const hideSudoPeople = (payload, actorIsSudo) => {
 export const resolveAssignee = async (value) => {
   if (value === undefined || value === null || value === '') return null
   if (!isValidObjectId(value)) return undefined
-  const user = await User.findById(value).select('role').populate('role', 'name').lean()
+  const user = await User.findById(value)
+    .select('role')
+    .populate('role', 'name')
+    .lean()
   if (!user || isSudo(user.role?.name)) return undefined
   return value
 }
@@ -111,7 +113,8 @@ export const listTasksByStatus = async (status, query = {}) => {
     error.status = 400
     throw error
   }
-  const sort = status === TASK_STATUS.completed ? { completedAt: -1 } : { createdAt: -1 }
+  const sort =
+    status === TASK_STATUS.completed ? { completedAt: -1 } : { createdAt: -1 }
   return pageOf({ status }, sort, pg)
 }
 

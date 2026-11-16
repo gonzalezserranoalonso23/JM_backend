@@ -156,15 +156,30 @@ const mockRes = () => ({
   json: vi.fn().mockReturnThis()
 })
 
+const mockQuery = (result) => {
+  const promise = Promise.resolve(result)
+  const query = {
+    populate: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    sort: vi.fn().mockReturnThis(),
+    skip: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    lean: vi.fn().mockReturnThis(),
+    then: promise.then.bind(promise),
+    catch: promise.catch.bind(promise)
+  }
+  return query
+}
+
 describe('Controller smoke tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('returns categories list', async () => {
-    CategoriesModel.find.mockResolvedValue([
-      { _id: 'cat-1', categories: 'Limpieza' }
-    ])
+    CategoriesModel.find.mockReturnValue(
+      mockQuery([{ _id: 'cat-1', categories: 'Limpieza' }])
+    )
 
     const req = {}
     const res = mockRes()
@@ -193,10 +208,7 @@ describe('Controller smoke tests', () => {
   })
 
   it('returns daily information', async () => {
-    DailyInformationModel.find.mockReturnValue({
-      sort: vi.fn().mockReturnThis(),
-      lean: vi.fn().mockResolvedValue([{ _id: 'd-1' }])
-    })
+    DailyInformationModel.find.mockReturnValue(mockQuery([{ _id: 'd-1' }]))
 
     const res = mockRes()
     await getDailyInformations({}, res)
@@ -250,11 +262,9 @@ describe('Controller smoke tests', () => {
 
   it('lists inventory records', async () => {
     const res = mockRes()
-    vi.spyOn(InventoryRecord, 'find').mockReturnValue({
-      populate: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      sort: vi.fn().mockResolvedValue([{ _id: 'r-1' }])
-    })
+    vi.spyOn(InventoryRecord, 'find').mockReturnValue(
+      mockQuery([{ _id: 'r-1' }])
+    )
 
     await getInventoryRecords({}, res)
 
@@ -262,11 +272,7 @@ describe('Controller smoke tests', () => {
   })
 
   it('lists orders', async () => {
-    OrderModel.find.mockReturnValue({
-      populate: vi.fn().mockReturnThis(),
-      sort: vi.fn().mockReturnThis(),
-      lean: vi.fn().mockResolvedValue([{ _id: 'o-1' }])
-    })
+    OrderModel.find.mockReturnValue(mockQuery([{ _id: 'o-1' }]))
 
     const res = mockRes()
     await getOrders({}, res)
@@ -296,10 +302,7 @@ describe('Controller smoke tests', () => {
   })
 
   it('lists products', async () => {
-    const query = {
-      populate: vi.fn().mockReturnThis(),
-      lean: vi.fn().mockResolvedValue([{ _id: 'p-1' }])
-    }
+    const query = mockQuery([{ _id: 'p-1' }])
     ProductModel.find.mockReturnValue(query)
 
     const res = mockRes()
@@ -311,9 +314,9 @@ describe('Controller smoke tests', () => {
   })
 
   it('lists suppliers', async () => {
-    SupplierModel.find.mockResolvedValue([
-      { _id: 's-1', suppliersName: 'Proveedor UNO' }
-    ])
+    SupplierModel.find.mockReturnValue(
+      mockQuery([{ _id: 's-1', suppliersName: 'Proveedor UNO' }])
+    )
     const res = mockRes()
 
     await getSuppliers({}, res)
@@ -325,11 +328,13 @@ describe('Controller smoke tests', () => {
     const res = mockRes()
     const saveSpy = vi.fn().mockResolvedValue({ _id: 't-1' })
     TaskModel.prototype.save = saveSpy
-    TaskModel.prototype.populate = vi.fn().mockResolvedValue({
-      _id: 't-1',
-      title: 'Revisión',
-      createdBy: 'u-1'
-    })
+    TaskModel.findById.mockReturnValue(
+      mockQuery({
+        _id: 't-1',
+        title: 'Revisión',
+        createdBy: 'u-1'
+      })
+    )
 
     await createTask(
       {
@@ -347,20 +352,20 @@ describe('Controller smoke tests', () => {
   it('notifies only the assigned user when a pending task is created', async () => {
     const res = mockRes()
     const assigneeId = '507f1f77bcf86cd799439011'
-    UsersModel.findById.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        populate: vi.fn().mockResolvedValue({
-          _id: assigneeId,
-          role: { name: 'Staff' }
-        })
+    UsersModel.findById.mockReturnValue(
+      mockQuery({
+        _id: assigneeId,
+        role: { name: 'Staff' }
       })
-    })
+    )
     TaskModel.prototype.save = vi.fn().mockResolvedValue({ _id: 't-2' })
-    TaskModel.prototype.populate = vi.fn().mockResolvedValue({
-      _id: 't-2',
-      title: 'Reponer leche',
-      assignedTo: { _id: assigneeId }
-    })
+    TaskModel.findById.mockReturnValue(
+      mockQuery({
+        _id: 't-2',
+        title: 'Reponer leche',
+        assignedTo: { _id: assigneeId }
+      })
+    )
 
     await createTask(
       {
@@ -385,11 +390,7 @@ describe('Controller smoke tests', () => {
   })
 
   it('lists tasks', async () => {
-    TaskModel.find.mockReturnValue({
-      populate: vi.fn().mockReturnThis(),
-      sort: vi.fn().mockReturnThis(),
-      lean: vi.fn().mockResolvedValue([{ _id: 't-1' }])
-    })
+    TaskModel.find.mockReturnValue(mockQuery([{ _id: 't-1' }]))
 
     const res = mockRes()
     await getTasks({}, res)
@@ -423,12 +424,14 @@ describe('Controller smoke tests', () => {
 
   it('logs in user with valid password', async () => {
     const res = mockRes()
-    UsersModel.findOne.mockResolvedValue({
-      _id: 'u-1',
-      username: 'admin',
-      password: 'hash',
-      isAdmin: true
-    })
+    UsersModel.findOne.mockReturnValue(
+      mockQuery({
+        _id: 'u-1',
+        username: 'admin',
+        password: 'hash',
+        isAdmin: true
+      })
+    )
     bcrypt.compare.mockResolvedValue(true)
 
     await loginUser({ body: { username: 'admin', password: 'abc123' } }, res)
@@ -440,10 +443,7 @@ describe('Controller smoke tests', () => {
   })
 
   it('lists users', async () => {
-    const query = {
-      select: vi.fn().mockReturnThis(),
-      populate: vi.fn().mockResolvedValue([{ _id: 'u-1', username: 'admin' }])
-    }
+    const query = mockQuery([{ _id: 'u-1', username: 'admin' }])
     UsersModel.find.mockReturnValue(query)
     const res = mockRes()
 

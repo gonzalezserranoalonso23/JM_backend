@@ -18,10 +18,7 @@ import {
   sudoIsHidden,
   withRole
 } from '../services/users.service.js'
-import {
-  createPaginatedResponse,
-  getPagination
-} from '../utils/pagination.js'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 
 const sendUserError = (res, error, fallback) => {
   if (!error.status) console.error(error)
@@ -60,7 +57,11 @@ const getUsers = async (req, res) => {
     }
 
     const [data, total] = await Promise.all([
-      base().sort({ username: 1 }).skip(pagination.skip).limit(pagination.limit).lean(),
+      base()
+        .sort({ username: 1 })
+        .skip(pagination.skip)
+        .limit(pagination.limit)
+        .lean(),
       UserModel.countDocuments(filter)
     ])
 
@@ -152,7 +153,9 @@ const updateUser = async (req, res) => {
     return res.status(400).json({ message: 'ID inválido' })
   const { username, password, fullName } = req.body
   try {
-    const existing = await withRole(UserModel.findById(id).select('username role')).lean()
+    const existing = await withRole(
+      UserModel.findById(id).select('username role')
+    ).lean()
     if (!existing || sudoIsHidden(req.role, existing))
       return res.status(404).json({ message: 'Usuario no encontrado' })
 
@@ -236,7 +239,9 @@ const deleteUser = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
-    const existing = await withRole(UserModel.findById(id).select('role')).lean()
+    const existing = await withRole(
+      UserModel.findById(id).select('role')
+    ).lean()
     if (!existing || sudoIsHidden(req.role, existing))
       return res.status(404).json({ message: 'Usuario no encontrado' })
     guardAssignable(req.role, undefined, existing)

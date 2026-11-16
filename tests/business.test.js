@@ -100,11 +100,14 @@ const mockRes = () => ({
   json: vi.fn().mockReturnThis()
 })
 
-const mockChainedPopulate = (record) => {
+const mockQuery = (record) => {
   const result = Promise.resolve(record)
   const query = {
     populate: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
+    sort: vi.fn().mockReturnThis(),
+    skip: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
     lean: vi.fn().mockReturnThis(),
     then: result.then.bind(result),
     catch: result.catch.bind(result)
@@ -155,12 +158,14 @@ describe('Business logic tests', () => {
   it('logs in a valid user and returns a JWT', async () => {
     const res = mockRes()
 
-    UserModel.findOne.mockResolvedValue({
-      _id: '507f1f77bcf86cd799439013',
-      username: 'admin',
-      password: 'hashed-pass',
-      isAdmin: true
-    })
+    UserModel.findOne.mockReturnValue(
+      mockQuery({
+        _id: '507f1f77bcf86cd799439013',
+        username: 'admin',
+        password: 'hashed-pass',
+        isAdmin: true
+      })
+    )
     bcrypt.compare.mockResolvedValue(true)
 
     await loginUser(
@@ -257,9 +262,7 @@ describe('Business logic tests', () => {
       _id: '507f1f77bcf86cd799439011',
       productStock: 17
     })
-    InventoryRecordModel.findById.mockReturnValue(
-      mockChainedPopulate(populatedRecord)
-    )
+    InventoryRecordModel.findById.mockReturnValue(mockQuery(populatedRecord))
     InventoryRecordModel.instances = []
 
     await createInventoryRecord(
@@ -332,9 +335,7 @@ describe('Business logic tests', () => {
       _id: '507f1f77bcf86cd799439011',
       productStock: 9
     })
-    InventoryRecordModel.findById.mockReturnValue(
-      mockChainedPopulate(populatedRecord)
-    )
+    InventoryRecordModel.findById.mockReturnValue(mockQuery(populatedRecord))
     InventoryRecordModel.instances = []
 
     await createInventoryRecord(
@@ -421,19 +422,26 @@ describe('Business logic tests', () => {
 
   it('summarizes only ISSUE records as daily sales', async () => {
     const res = mockRes()
-    InventoryRecordModel.find.mockReturnValue(
-      mockChainedPopulate([
-        { typeInventory: { stockDirection: 1 }, totalAmount: 100 },
-        { typeInventory: { stockDirection: -1 }, totalAmount: 35 },
-        { typeInventory: { stockDirection: -1 }, totalAmount: '15.50' }
-      ])
-    )
+    TypeInventory.find.mockReturnValue(mockQuery([{ _id: ISSUE_TYPE_ID }]))
+    InventoryRecordModel.aggregate.mockResolvedValue([
+      { totalSales: 50.5, totalTransactions: 2, productsSold: 2 }
+    ])
 
     await getDailySalesSummary({ query: { date: '2026-09-03' } }, res)
 
-    expect(InventoryRecordModel.find).toHaveBeenCalledWith({
-      date: '2026-09-03'
-    })
+    expect(InventoryRecordModel.aggregate).toHaveBeenCalledWith([
+      {
+        $match: { date: '2026-09-03', typeInventory: { $in: [ISSUE_TYPE_ID] } }
+      },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
+          productsSold: { $sum: '$quantity' }
+        }
+      }
+    ])
     expect(res.status).toHaveBeenCalledWith(200)
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -501,11 +509,7 @@ describe('Business logic tests', () => {
   })
 
   it('lists only products below their minimum stock', async () => {
-    const query = {
-      populate: vi.fn().mockReturnThis(),
-      then: (resolve) => Promise.resolve([]).then(resolve)
-    }
-    Product.find.mockReturnValue(query)
+    Product.find.mockReturnValue(mockQuery([]))
     const res = mockRes()
 
     await getLowStockProducts({ query: {} }, res)
@@ -521,12 +525,14 @@ describe('Business logic tests', () => {
 describe('Seguridad del login', () => {
   it('el token dura 7 días y usa HS256', async () => {
     const res = mockRes()
-    UserModel.findOne.mockResolvedValue({
-      _id: '507f1f77bcf86cd799439013',
-      username: 'admin',
-      password: 'hashed-pass',
-      isAdmin: false
-    })
+    UserModel.findOne.mockReturnValue(
+      mockQuery({
+        _id: '507f1f77bcf86cd799439013',
+        username: 'admin',
+        password: 'hashed-pass',
+        isAdmin: false
+      })
+    )
     bcrypt.compare.mockResolvedValue(true)
     await loginUser(
       { body: { username: 'admin', password: 'x', remember: true } },

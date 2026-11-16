@@ -2,7 +2,11 @@ import { isValidObjectId } from 'mongoose'
 import Attendance from '../models/attendance.model.js'
 import User from '../models/users.model.js'
 import Supplier from '../models/suppliers.model.js'
-import { findSudoRoleId, grantsFullAccess, isSudo } from '../models/roles.model.js'
+import {
+  findSudoRoleId,
+  grantsFullAccess,
+  isSudo
+} from '../models/roles.model.js'
 import { roundMoney } from '../utils/money.js'
 
 export const CLIENT_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -103,7 +107,9 @@ export const resolveWorkplacePosition = (
     longitude < -180 ||
     longitude > 180
   ) {
-    const error = new Error(`Se necesita tu ubicación para registrar la ${action}`)
+    const error = new Error(
+      `Se necesita tu ubicación para registrar la ${action}`
+    )
     error.status = 400
     throw error
   }
@@ -128,7 +134,9 @@ export const resolveWorkplacePosition = (
 
 export const canPunch = (role, user) => {
   if (!grantsFullAccess(role) || user?.haveSchedule === true) return true
-  const error = new Error('La asistencia es para el personal, no para administradores')
+  const error = new Error(
+    'La asistencia es para el personal, no para administradores'
+  )
   error.status = 403
   throw error
 }
@@ -187,7 +195,9 @@ export const readRecordPage = (query = {}) => {
     throw error
   }
   if (from && to && from > to) {
-    const error = new Error('La fecha inicial no puede ser posterior a la final')
+    const error = new Error(
+      'La fecha inicial no puede ser posterior a la final'
+    )
     error.status = 400
     throw error
   }
@@ -261,7 +271,9 @@ export const getAttendanceDayData = async (role, date) => {
       .lean()
   ])
 
-  const present = new Set(records.map((record) => String(record.user?._id || '')))
+  const present = new Set(
+    records.map((record) => String(record.user?._id || ''))
+  )
   const working = staff
     .filter((user) => worksOnDate(user, date) || present.has(String(user._id)))
     .map(({ _id, username, fullName }) => ({ _id, username, fullName }))
@@ -270,7 +282,9 @@ export const getAttendanceDayData = async (role, date) => {
 }
 
 export const checkInUser = async ({ userId, role, body = {} }) => {
-  const user = await User.findById(userId).select('haveSchedule schedule').lean()
+  const user = await User.findById(userId)
+    .select('haveSchedule schedule')
+    .lean()
   canPunch(role, user)
   if (!worksToday(user)) {
     const error = new Error('Hoy no es tu día de trabajo')
@@ -279,9 +293,14 @@ export const checkInUser = async ({ userId, role, body = {} }) => {
   }
 
   const position = resolveWorkplacePosition(body, 'entrada')
-  const open = await Attendance.findOne({ user: userId, checkOutAt: null }).lean()
+  const open = await Attendance.findOne({
+    user: userId,
+    checkOutAt: null
+  }).lean()
   if (open) {
-    const error = new Error('Ya tienes una entrada abierta. Registra la salida primero.')
+    const error = new Error(
+      'Ya tienes una entrada abierta. Registra la salida primero.'
+    )
     error.status = 409
     throw error
   }
@@ -319,7 +338,10 @@ export const checkOutUser = async ({ userId, role, body = {} }) => {
   const user = await User.findById(userId).select('haveSchedule').lean()
   canPunch(role, user)
 
-  const open = await Attendance.findOne({ user: userId, checkOutAt: null }).lean()
+  const open = await Attendance.findOne({
+    user: userId,
+    checkOutAt: null
+  }).lean()
   if (!open) {
     const error = new Error('No tienes una entrada abierta')
     error.status = 400

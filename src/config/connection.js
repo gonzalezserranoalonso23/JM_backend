@@ -6,10 +6,7 @@
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 import { ensureRoles, ensureSudoOwner } from '../models/roles.model.js'
-import {
-  dropLegacyAdminFlag,
-  dropLegacyEmail
-} from '../models/users.model.js'
+import { dropLegacyAdminFlag, dropLegacyEmail } from '../models/users.model.js'
 import { loadApplicationStatus } from '../models/appState.model.js'
 
 dotenv.config()

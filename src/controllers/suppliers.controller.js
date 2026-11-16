@@ -53,7 +53,7 @@ const getSuppliers = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al cargar los proveedores',
+      message: 'Error al cargar los proveedores'
     })
   }
 }
@@ -69,9 +69,7 @@ const getSupplier = async (req, res) => {
     res.status(200).json(data)
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al cargar el proveedor' })
+    res.status(500).json({ message: 'Error al cargar el proveedor' })
   }
 }
 
@@ -101,9 +99,7 @@ const createSupplier = async (req, res) => {
     res.status(201).json(data)
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al crear el proveedor' })
+    res.status(500).json({ message: 'Error al crear el proveedor' })
   }
 }
 
@@ -138,7 +134,7 @@ const updateSupplier = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al actualizar el proveedor',
+      message: 'Error al actualizar el proveedor'
     })
   }
 }
@@ -154,9 +150,7 @@ const deleteSupplier = async (req, res) => {
     res.status(200).json({ message: 'Proveedor eliminado exitosamente' })
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al eliminar el proveedor' })
+    res.status(500).json({ message: 'Error al eliminar el proveedor' })
   }
 }
 

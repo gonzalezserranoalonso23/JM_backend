@@ -1,5 +1,6 @@
 // Round to 2 decimals. 1.005 -> 1.01.
-export const roundMoney = (value) => Math.round((value + Number.EPSILON) * 100) / 100
+export const roundMoney = (value) =>
+  Math.round((value + Number.EPSILON) * 100) / 100
 
 // quantity x price. null when either value is not a number.
 export const lineTotal = (quantity, price) => {

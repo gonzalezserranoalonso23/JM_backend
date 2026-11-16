@@ -9,10 +9,7 @@
  */
 import CategoriesModel from '../models/categories.model.js'
 import { isValidObjectId } from 'mongoose'
-import {
-  createPaginatedResponse,
-  getPagination
-} from '../utils/pagination.js'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 
 const getCategories = async (req, res) => {
   const pagination = getPagination(req.query)
@@ -41,9 +38,7 @@ const getCategories = async (req, res) => {
       .json(createPaginatedResponse(data, total, pagination))
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al cargar las categorías' })
+    res.status(500).json({ message: 'Error al cargar las categorías' })
   }
 }
 
@@ -58,9 +53,7 @@ const getCategory = async (req, res) => {
     res.status(200).json(data)
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al cargar la categoría' })
+    res.status(500).json({ message: 'Error al cargar la categoría' })
   }
 }
 
@@ -76,9 +69,7 @@ const createCategory = async (req, res) => {
     res.status(201).json(data)
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al crear la categoría' })
+    res.status(500).json({ message: 'Error al crear la categoría' })
   }
 }
 
@@ -99,7 +90,7 @@ const updateCategory = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al actualizar la categoría',
+      message: 'Error al actualizar la categoría'
     })
   }
 }
@@ -115,9 +106,7 @@ const deleteCategory = async (req, res) => {
     res.status(200).json({ message: 'Categoría eliminada exitosamente' })
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al eliminar la categoría' })
+    res.status(500).json({ message: 'Error al eliminar la categoría' })
   }
 }
 

@@ -47,7 +47,7 @@ export const subscribePush = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({
-      message: 'No se pudo guardar la suscripción',
+      message: 'No se pudo guardar la suscripción'
     })
   }
 }
@@ -63,7 +63,7 @@ export const unsubscribePush = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({
-      message: 'No se pudo eliminar la suscripción',
+      message: 'No se pudo eliminar la suscripción'
     })
   }
 }

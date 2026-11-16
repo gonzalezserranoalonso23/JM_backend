@@ -12,10 +12,7 @@ import {
   TYPE_INVENTORY_FIELDS
 } from '../utils/projections.js'
 import { lineTotal } from '../utils/money.js'
-import {
-  createPaginatedResponse,
-  getPagination
-} from '../utils/pagination.js'
+import { createPaginatedResponse, getPagination } from '../utils/pagination.js'
 import {
   adjustStock,
   buildInventoryListFilter,
@@ -83,7 +80,7 @@ const getInventoryRecords = async (req, res) => {
     }
     console.error(error)
     return res.status(500).json({
-      message: 'Hubo un error al cargar los registros de inventario!',
+      message: 'Hubo un error al cargar los registros de inventario!'
     })
   }
 }
@@ -109,7 +106,7 @@ const getInventoryRecord = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Hubo un error el registro de inventario!',
+        message: 'Hubo un error el registro de inventario!'
       })
     })
 }
@@ -133,7 +130,7 @@ const createInventoryRecord = async (req, res) => {
         : 'Ha ocurrido un error al crear el registro de inventario',
       availableStock: error.availableStock,
       requestedQuantity: error.requestedQuantity,
-      productName: error.productName,
+      productName: error.productName
     })
   }
 }
@@ -166,7 +163,9 @@ const createInventoryRecords = async (req, res) => {
           ? error.message
           : 'Ha ocurrido un error al crear el registro de inventario',
       availableStock: error.rollbackFailed ? undefined : error.availableStock,
-      requestedQuantity: error.rollbackFailed ? undefined : error.requestedQuantity,
+      requestedQuantity: error.rollbackFailed
+        ? undefined
+        : error.requestedQuantity,
       productName: error.rollbackFailed ? undefined : error.productName,
       failedAt: 0
     })
@@ -269,7 +268,8 @@ const updateInventoryRecord = async (req, res) => {
     }
     console.error(error)
     res.status(500).json({
-      message: 'Ha ocurrido un error al actualizar el registro de inventario !  '
+      message:
+        'Ha ocurrido un error al actualizar el registro de inventario !  '
     })
   }
 }

@@ -108,9 +108,7 @@ const deleteRole = async (req, res) => {
     }
     const inUse = await UserModel.exists({ role: id })
     if (inUse) {
-      return res
-        .status(409)
-        .json({ message: 'Hay usuarios con este rol' })
+      return res.status(409).json({ message: 'Hay usuarios con este rol' })
     }
     await RoleModel.deleteOne({ _id: id })
     res.status(200).json({ message: 'Rol eliminado' })

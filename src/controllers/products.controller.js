@@ -22,9 +22,7 @@ const getProducts = async (req, res) => {
     return res.status(200).json(result)
   } catch (error) {
     console.error(error)
-    return res
-      .status(500)
-      .json({ message: 'Error al cargar los productos' })
+    return res.status(500).json({ message: 'Error al cargar los productos' })
   }
 }
 
@@ -43,7 +41,7 @@ const getPromotionProducts = async (req, res) => {
     }
     console.error(error)
     return res.status(500).json({
-      message: 'Error al cargar los productos en promoción',
+      message: 'Error al cargar los productos en promoción'
     })
   }
 }
@@ -56,7 +54,7 @@ const getProductLookup = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({
-      message: 'Error al cargar los productos',
+      message: 'Error al cargar los productos'
     })
   }
 }
@@ -75,9 +73,7 @@ const getProduct = async (req, res) => {
     res.status(200).json(data)
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al cargar el producto' })
+    res.status(500).json({ message: 'Error al cargar el producto' })
   }
 }
 
@@ -129,9 +125,7 @@ const createProduct = async (req, res) => {
     res.status(201).json(data)
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al crear el producto' })
+    res.status(500).json({ message: 'Error al crear el producto' })
   }
 }
 
@@ -174,7 +168,7 @@ const updateProduct = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al actualizar el producto',
+      message: 'Error al actualizar el producto'
     })
   }
 }
@@ -190,9 +184,7 @@ const deleteProduct = async (req, res) => {
     res.status(200).json({ message: 'Producto eliminado exitosamente' })
   } catch (error) {
     console.error(error)
-    res
-      .status(500)
-      .json({ message: 'Error al eliminar el producto' })
+    res.status(500).json({ message: 'Error al eliminar el producto' })
   }
 }
 

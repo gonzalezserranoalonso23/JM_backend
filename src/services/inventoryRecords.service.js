@@ -372,7 +372,8 @@ export const undoStockChanges = async (stockChanges) => {
 export const prepareBulkDraft = async (payload, authenticatedUserId, maps) => {
   const { typeById, paymentById, productById } = maps
   let inventoryType = typeById.get(String(payload?.typeInventory || ''))
-  if (!inventoryType) inventoryType = await getInventoryType(payload?.typeInventory)
+  if (!inventoryType)
+    inventoryType = await getInventoryType(payload?.typeInventory)
 
   const paymentRaw = payload?.paymentType
   let paymentType = null
@@ -449,7 +450,10 @@ export const prepareBulkDraft = async (payload, authenticatedUserId, maps) => {
   }
 }
 
-export const createBulkInventoryRecords = async (records, authenticatedUserId) => {
+export const createBulkInventoryRecords = async (
+  records,
+  authenticatedUserId
+) => {
   const typeIds = [
     ...new Set(records.map((row) => String(row?.typeInventory || '')))
   ]
@@ -502,7 +506,9 @@ export const createBulkInventoryRecords = async (records, authenticatedUserId) =
   }
 
   const appliedStock = []
-  const stockRows = [...stockByProduct.values()].filter((row) => row.delta !== 0)
+  const stockRows = [...stockByProduct.values()].filter(
+    (row) => row.delta !== 0
+  )
   const settled = await Promise.allSettled(
     stockRows.map(async (row) => {
       const updatedProduct = await adjustStock(row.productId, row.delta)

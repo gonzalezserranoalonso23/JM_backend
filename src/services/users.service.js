@@ -38,7 +38,9 @@ export const buildUsersFilter = async ({ actorRole, search }) => {
 }
 
 export const listAssignableUsers = async () =>
-  UserModel.find(await withoutSudoFilter(), USER_FIELDS).sort({ username: 1 }).lean()
+  UserModel.find(await withoutSudoFilter(), USER_FIELDS)
+    .sort({ username: 1 })
+    .lean()
 
 export const readRole = async (value) => {
   if (value === undefined || value === null || value === '') return undefined
@@ -142,7 +144,10 @@ export const authenticateUser = async ({ username, password }) => {
     throw error
   }
 
-  const existUser = await UserModel.findOne({ username }).populate('role', 'name')
+  const existUser = await UserModel.findOne({ username }).populate(
+    'role',
+    'name'
+  )
   if (!existUser) {
     const error = new Error('Usuario y/o contraseña no válida')
     error.status = 401

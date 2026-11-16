@@ -18,7 +18,7 @@ const getTypeInventories = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Hubo un error al cargar los tipos de inventario!',
+        message: 'Hubo un error al cargar los tipos de inventario!'
       })
     })
 }
@@ -39,7 +39,7 @@ const getTypeInventory = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Hubo un error al cargar el tipo de inventario!',
+        message: 'Hubo un error al cargar el tipo de inventario!'
       })
     })
 }
@@ -55,7 +55,7 @@ const createTypeInventory = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Ha ocurrido un error al crear el tipo de inventario ',
+        message: 'Ha ocurrido un error al crear el tipo de inventario '
       })
     })
 }
@@ -84,7 +84,7 @@ const updateTypeInventory = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Ha ocurrido un error al actualizar el tipo de inventario',
+        message: 'Ha ocurrido un error al actualizar el tipo de inventario'
       })
     })
 }
@@ -107,7 +107,7 @@ const deleteTypeInventory = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Hubo un error al intentar borrar el tipo de inventario ',
+        message: 'Hubo un error al intentar borrar el tipo de inventario '
       })
     })
 }

@@ -73,7 +73,8 @@ export const normalizeError = (err) => {
   if (Number.isInteger(err.status) && err.status >= 400 && err.status < 600) {
     return withPublicFields(err, {
       status: err.status,
-      message: err.message || STATUS_MESSAGES[err.status] || 'Error del servidor'
+      message:
+        err.message || STATUS_MESSAGES[err.status] || 'Error del servidor'
     })
   }
 

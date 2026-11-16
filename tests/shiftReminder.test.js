@@ -20,12 +20,9 @@ vi.mock('../src/models/attendance.model.js', () => ({
   default: { exists: vi.fn() }
 }))
 
-vi.mock(
-  '../src/models/pushNotifications.model.js',
-  () => ({
-    default: { exists: vi.fn() }
-  })
-)
+vi.mock('../src/models/pushNotifications.model.js', () => ({
+  default: { exists: vi.fn() }
+}))
 
 vi.mock('../src/utils/pushService.js', () => ({
   sendPushToUser: vi.fn()
@@ -42,8 +39,7 @@ const { default: Attendance } =
   await import('../src/models/attendance.model.js')
 const { default: PushSubscription } =
   await import('../src/models/pushNotifications.model.js')
-const { sendPushToUser } =
-  await import('../src/utils/pushService.js')
+const { sendPushToUser } = await import('../src/utils/pushService.js')
 const { default: ShiftReminder } =
   await import('../src/models/shiftReminder.model.js')
 const { isShiftReminderDue, minutesFromClock, remindDueShifts } =

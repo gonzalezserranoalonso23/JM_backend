@@ -69,10 +69,7 @@ const getOrders = async (req, res) => {
     }
 
     const [data, total] = await Promise.all([
-      listOrders(filter)
-        .skip(pagination.skip)
-        .limit(pagination.limit)
-        .lean(),
+      listOrders(filter).skip(pagination.skip).limit(pagination.limit).lean(),
       Order.countDocuments(filter)
     ])
     return res
@@ -81,7 +78,7 @@ const getOrders = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({
-      message: 'Error al cargar órdenes',
+      message: 'Error al cargar órdenes'
     })
   }
 }
@@ -105,13 +102,13 @@ const getOrder = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Error al cargar la orden',
+        message: 'Error al cargar la orden'
       })
     })
 }
 
 const createOrder = (req, res) => {
-  const { date, supplier, items, totalAmount, status } = req.body
+  const { date, supplier, items, status } = req.body
 
   if (!items || items.length === 0) {
     return res.status(400).json({
@@ -139,7 +136,7 @@ const createOrder = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Error al crear la orden',
+        message: 'Error al crear la orden'
       })
     })
 }
@@ -160,9 +157,7 @@ const updateOrder = (req, res) => {
       items: computed?.items ?? items,
       totalAmount: computed?.totalAmount ?? totalAmount,
       status
-    }).filter(
-      ([, value]) => value !== undefined
-    )
+    }).filter(([, value]) => value !== undefined)
   )
 
   Order.findByIdAndUpdate(
@@ -181,7 +176,7 @@ const updateOrder = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Error al actualizar la orden',
+        message: 'Error al actualizar la orden'
       })
     })
 }
@@ -205,7 +200,7 @@ const deleteOrder = (req, res) => {
     .catch((error) => {
       console.error(error)
       res.status(500).json({
-        message: 'Error al eliminar la orden',
+        message: 'Error al eliminar la orden'
       })
     })
 }

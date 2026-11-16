@@ -40,7 +40,8 @@ export const verifyToken = (req, res, next) => {
         req.user = decoded
         req.userId = decoded.id
         req.role = user.role?.name || ''
-        if (!isApplicationActive() && !isSudo(req.role)) return disconnected(res)
+        if (!isApplicationActive() && !isSudo(req.role))
+          return disconnected(res)
         next()
       } catch (error) {
         console.error(error)

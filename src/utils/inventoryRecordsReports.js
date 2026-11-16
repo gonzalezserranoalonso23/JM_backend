@@ -11,10 +11,7 @@ import {
   TYPE_INVENTORY_FIELDS
 } from './projections.js'
 import { roundMoney } from './money.js'
-import {
-  createPaginatedResponse,
-  getPagination
-} from './pagination.js'
+import { createPaginatedResponse, getPagination } from './pagination.js'
 import { productTokenMatch, searchTokens } from './productSearch.js'
 
 const DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/
@@ -142,7 +139,7 @@ const getLiveInformation = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({
-      message: 'Error al obtener las ventas del día',
+      message: 'Error al obtener las ventas del día'
     })
   }
 }
@@ -187,7 +184,7 @@ const getDailySalesSummary = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al obtener resumen diario',
+      message: 'Error al obtener resumen diario'
     })
   }
 }
@@ -248,7 +245,7 @@ const getLowStockProducts = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al obtener productos con stock bajo',
+      message: 'Error al obtener productos con stock bajo'
     })
   }
 }
@@ -338,7 +335,7 @@ const getSalesByDateRange = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al obtener ventas por rango de fecha',
+      message: 'Error al obtener ventas por rango de fecha'
     })
   }
 }
@@ -390,7 +387,7 @@ const getInventoryByType = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al obtener inventario por tipo',
+      message: 'Error al obtener inventario por tipo'
     })
   }
 }
@@ -432,7 +429,7 @@ const getInventoryStats = async (req, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({
-      message: 'Error al obtener estadísticas de inventario',
+      message: 'Error al obtener estadísticas de inventario'
     })
   }
 }

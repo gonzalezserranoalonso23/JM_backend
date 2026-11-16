@@ -46,9 +46,8 @@ beforeAll(async () => {
 }, 120000)
 
 afterAll(async () => {
-  const { setApplicationActive } = await import(
-    '../src/models/appState.model.js'
-  )
+  const { setApplicationActive } =
+    await import('../src/models/appState.model.js')
   await setApplicationActive(true)
   await mongoose.disconnect()
   await mongod?.stop()
@@ -85,7 +84,9 @@ describe('apagado de la aplicación', () => {
     const closedStatus = await request(app).get('/api/app/status')
     expect(closedStatus.body).toEqual({ active: false, shutdown: true })
 
-    const sudo = await mongoose.model('User').findOne({ username: 'glezalonso23' })
+    const sudo = await mongoose
+      .model('User')
+      .findOne({ username: 'glezalonso23' })
     const freshToken = sign(sudo, 'Sudo', sudo.tokenVersion)
     const started = await request(app)
       .post('/api/app/startup')
@@ -114,9 +115,8 @@ describe('apagado de la aplicación', () => {
 
   it('apagada, el login es público y solo el sudo entra sin encenderla', async () => {
     const bcrypt = (await import('bcryptjs')).default
-    const { setApplicationActive } = await import(
-      '../src/models/appState.model.js'
-    )
+    const { setApplicationActive } =
+      await import('../src/models/appState.model.js')
     await setApplicationActive(false)
     const password = await bcrypt.hash('secreto1', 4)
     await mongoose.model('User').updateMany({}, { password })
