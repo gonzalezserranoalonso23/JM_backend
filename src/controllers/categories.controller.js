@@ -21,17 +21,18 @@ const getCategories = async (req, res) => {
   }
 
   try {
-    const query = CategoriesModel.find()
+    const query = CategoriesModel.find().lean()
     if (!pagination.requested) {
-      const data = await query
+      const data = await query.sort({ categories: 1 })
       return res.status(200).json(data)
     }
 
     const [data, total] = await Promise.all([
-      query
+      CategoriesModel.find()
         .sort({ categories: 1 })
         .skip(pagination.skip)
-        .limit(pagination.limit),
+        .limit(pagination.limit)
+        .lean(),
       CategoriesModel.countDocuments()
     ])
 
@@ -51,7 +52,7 @@ const getCategory = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
-    const data = await CategoriesModel.findById(id)
+    const data = await CategoriesModel.findById(id).lean()
     if (!data)
       return res.status(404).json({ message: 'Categoría no encontrada' })
     res.status(200).json(data)
@@ -91,7 +92,7 @@ const updateCategory = async (req, res) => {
       { _id: id },
       { categories },
       { returnDocument: 'after' }
-    )
+    ).lean()
     if (!data)
       return res.status(404).json({ message: 'Categoría no encontrada' })
     res.status(200).json(data)

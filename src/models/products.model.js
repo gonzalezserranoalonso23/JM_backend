@@ -54,5 +54,6 @@ const ProductSchema = createSchema({
 })
 
 ProductSchema.index({ productName: 1 })
+ProductSchema.index({ category: 1, isActive: 1, productName: 1 })
 
 export default mongoose.model('Product', ProductSchema)

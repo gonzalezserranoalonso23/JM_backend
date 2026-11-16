@@ -28,6 +28,7 @@ const getTypeInventory = (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   TypeInventory.findById(id)
+    .lean()
     .then((data) => {
       if (!data)
         return res
@@ -72,6 +73,7 @@ const updateTypeInventory = (req, res) => {
     },
     { returnDocument: 'after', runValidators: true }
   )
+    .lean()
     .then((data) => {
       if (!data)
         return res

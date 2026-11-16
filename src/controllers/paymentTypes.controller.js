@@ -13,7 +13,9 @@ import InventoryRecord from '../models/inventoryRecords.model.js'
 
 const getPaymentTypes = async (req, res) => {
   try {
-    res.status(200).json(await PaymentType.find().sort({ paymentType: 1 }))
+    res
+      .status(200)
+      .json(await PaymentType.find().sort({ paymentType: 1 }).lean())
   } catch (error) {
     console.error(error)
     res.status(500).json({
@@ -28,7 +30,7 @@ const getPaymentType = async (req, res) => {
   }
 
   try {
-    const paymentType = await PaymentType.findById(req.params.id)
+    const paymentType = await PaymentType.findById(req.params.id).lean()
     if (!paymentType) {
       return res.status(404).json({ message: 'Tipo de pago no encontrado' })
     }

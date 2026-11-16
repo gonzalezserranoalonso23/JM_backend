@@ -53,7 +53,8 @@ const getDailyInformations = async (req, res) => {
     const listed = () => DailyInformation.find(filter).sort({ date: -1 })
 
     if (!pagination.requested) {
-      const data = await listed().lean()
+      // Safety cap for unpaginated listing on a growing collection.
+      const data = await listed().limit(500).lean()
       return res.status(200).json(data)
     }
 
@@ -77,6 +78,7 @@ const getDailyInformation = (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   DailyInformation.findById(id)
+    .lean()
     .then((data) => {
       if (!data)
         return res
@@ -129,6 +131,7 @@ const updateDailyInformation = (req, res) => {
     },
     { returnDocument: 'after' }
   )
+    .lean()
     .then((data) => {
       if (!data)
         return res

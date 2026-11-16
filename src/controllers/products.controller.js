@@ -1,29 +1,15 @@
 /**
  * Products. Base: /api/products (token)
- *
- * GET    /            query { page, limit, search }. Tokens, filler words dropped.
- * GET    /promotions  query { page, limit, search, category }
- * GET    /lookup      query { search, active }. Same token search.
- * GET    /:id         params { id }
- * POST   /            { productName, productDescription, purchasePrice, productPrice, minimumProductStock, productStock, supplier, category, isActive }
- * PUT    /:id         params { id }, same body as POST
- * DELETE /:id         params { id }. Full access.
  */
 import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../utils/projections.js'
 import ProductsModel from '../models/products.model.js'
-import SuppliersModel from '../models/suppliers.model.js'
-import CategoriesModel from '../models/categories.model.js'
-import mongoose, { isValidObjectId } from 'mongoose'
+import { isValidObjectId } from 'mongoose'
+import { getPagination } from '../utils/pagination.js'
 import {
-  accentInsensitiveRegex,
-  createPaginatedResponse,
-  getPagination
-} from '../utils/pagination.js'
-import {
-  foldText,
-  productTokenMatch,
-  searchTokens
-} from '../utils/productSearch.js'
+  findProductLookup,
+  listProducts,
+  listPromotionProducts
+} from '../services/products.service.js'
 
 const getProducts = async (req, res) => {
   const pagination = getPagination(req.query)
@@ -32,129 +18,14 @@ const getProducts = async (req, res) => {
   }
 
   try {
-    const search = req.query?.search?.trim()
-    const listed = () =>
-      ProductsModel.find()
-        .populate('category', CATEGORY_FIELDS)
-        .populate('supplier', SUPPLIER_FIELDS)
-        .lean()
-
-    if (!search) {
-      const query = listed()
-      if (!pagination.requested) {
-        const data = await query
-        return res.status(200).json(data)
-      }
-      const [data, total] = await Promise.all([
-        query
-          .sort({ productName: 1 })
-          .skip(pagination.skip)
-          .limit(pagination.limit),
-        ProductsModel.countDocuments({})
-      ])
-      return res
-        .status(200)
-        .json(createPaginatedResponse(data, total, pagination))
-    }
-
-    // A name that contains every token sorts before a supplier-only match.
-    const tokens = searchTokens(search)
-    if (!tokens.length) {
-      return res
-        .status(200)
-        .json(createPaginatedResponse([], 0, pagination))
-    }
-    const suppliers = await SuppliersModel.find(
-      productTokenMatch(tokens, ['suppliersName']),
-      { _id: 1 }
-    ).lean()
-    const supplierIds = suppliers.map((item) => item._id)
-    const textMatch = productTokenMatch(tokens)
-    const nameHit = {
-      $and: tokens.map((token) => ({
-        $regexMatch: {
-          input: '$productName',
-          regex: accentInsensitiveRegex(token),
-          options: 'i'
-        }
-      }))
-    }
-    const match = supplierIds.length
-      ? { $or: [textMatch, { supplier: { $in: supplierIds } }] }
-      : textMatch
-
-    const project = (fields) =>
-      Object.fromEntries(fields.split(' ').map((field) => [field, 1]))
-    const [result] = await ProductsModel.aggregate([
-      { $match: match },
-      { $addFields: { textHit: nameHit } },
-      { $sort: { textHit: -1, productName: 1 } },
-      {
-        $facet: {
-          meta: [{ $count: 'total' }],
-          data: [
-            { $skip: pagination.skip },
-            { $limit: pagination.limit },
-            {
-              $lookup: {
-                from: CategoriesModel.collection.name,
-                localField: 'category',
-                foreignField: '_id',
-                pipeline: [{ $project: project(CATEGORY_FIELDS) }],
-                as: 'category'
-              }
-            },
-            {
-              $lookup: {
-                from: SuppliersModel.collection.name,
-                localField: 'supplier',
-                foreignField: '_id',
-                pipeline: [{ $project: project(SUPPLIER_FIELDS) }],
-                as: 'supplier'
-              }
-            },
-            {
-              $set: {
-                category: { $ifNull: [{ $arrayElemAt: ['$category', 0] }, null] },
-                supplier: { $ifNull: [{ $arrayElemAt: ['$supplier', 0] }, null] }
-              }
-            },
-            { $unset: 'textHit' }
-          ]
-        }
-      }
-    ])
-    const data = result?.data ?? []
-    const total = result?.meta?.[0]?.total ?? 0
-
-    return res
-      .status(200)
-      .json(createPaginatedResponse(data, total, pagination))
+    const result = await listProducts(req.query, pagination)
+    return res.status(200).json(result)
   } catch (error) {
     console.error(error)
-    res
+    return res
       .status(500)
       .json({ message: 'Error al cargar los productos' })
   }
-}
-
-const MIN_MARGIN = 30
-
-const margin = {
-  $round: [
-    {
-      $multiply: [
-        {
-          $divide: [
-            { $subtract: ['$productPrice', '$purchasePrice'] },
-            '$productPrice'
-          ]
-        },
-        100
-      ]
-    },
-    2
-  ]
 }
 
 const getPromotionProducts = async (req, res) => {
@@ -163,120 +34,25 @@ const getPromotionProducts = async (req, res) => {
     return res.status(400).json({ message: pagination.error })
   }
 
-  const match = {
-    isActive: { $ne: false },
-    productPrice: { $gt: 0 },
-    $expr: { $gte: [margin, MIN_MARGIN] }
-  }
-  const search =
-    typeof req.query?.search === 'string' ? req.query.search.trim() : ''
-  if (search) {
-    const tokens = searchTokens(search)
-    if (!tokens.length) {
-      return res
-        .status(200)
-        .json(
-          pagination.requested
-            ? createPaginatedResponse([], 0, pagination)
-            : []
-        )
-    }
-    Object.assign(match, productTokenMatch(tokens))
-  }
-  const { category } = req.query
-  if (category) {
-    if (!isValidObjectId(category)) {
-      return res.status(400).json({ message: 'Categoría inválida' })
-    }
-    match.category = new mongoose.Types.ObjectId(category)
-  }
-
   try {
-    const project = (fields) =>
-      Object.fromEntries(fields.split(' ').map((field) => [field, 1]))
-    const pageStages = pagination.requested
-      ? [{ $skip: pagination.skip }, { $limit: pagination.limit }]
-      : []
-    const [result] = await ProductsModel.aggregate([
-      { $match: match },
-      { $addFields: { margin } },
-      { $sort: { productName: 1 } },
-      {
-        $facet: {
-          meta: [{ $count: 'total' }],
-          data: [
-            ...pageStages,
-            {
-              $lookup: {
-                from: CategoriesModel.collection.name,
-                localField: 'category',
-                foreignField: '_id',
-                pipeline: [{ $project: project(CATEGORY_FIELDS) }],
-                as: 'category'
-              }
-            },
-            {
-              $set: {
-                category: { $ifNull: [{ $arrayElemAt: ['$category', 0] }, null] }
-              }
-            }
-          ]
-        }
-      }
-    ])
-    const data = result?.data ?? []
-    const total = result?.meta?.[0]?.total ?? 0
-    if (!pagination.requested) {
-      return res.status(200).json(data)
-    }
-    return res
-      .status(200)
-      .json(createPaginatedResponse(data, total, pagination))
+    const result = await listPromotionProducts(req.query, pagination)
+    return res.status(200).json(result)
   } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message })
+    }
     console.error(error)
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Error al cargar los productos en promoción',
     })
   }
 }
 
-const LOOKUP_FIELDS = {
-  productName: 1,
-  productDescription: 1,
-  productStock: 1,
-  purchasePrice: 1,
-  productPrice: 1,
-  category: 1,
-  supplier: 1,
-  isActive: 1
-}
-
-const rankLookup = (rows, tokens) => {
-  const ranked = rows.map((product) => {
-    const name = foldText(product.productName)
-    const inName = tokens.every((token) => name.includes(token))
-    return { product, rank: inName ? 0 : 1, name }
-  })
-  ranked.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'es'))
-  return ranked.map((item) => item.product)
-}
-
 const getProductLookup = async (req, res) => {
   try {
     const { query = {} } = req
-    const { search = '', active } = query
-    const tokens = searchTokens(search)
-    if (!tokens.length) return res.status(200).json([])
-
-    const filter = productTokenMatch(tokens)
-    if (active === '1') filter.isActive = { $ne: false }
-
-    const rows = await ProductsModel.find(filter)
-      .select(LOOKUP_FIELDS)
-      .limit(40)
-      .lean()
-
-    return res.status(200).json(rankLookup(rows, tokens).slice(0, 20))
+    const rows = await findProductLookup(query)
+    return res.status(200).json(rows)
   } catch (error) {
     console.error(error)
     return res.status(500).json({
@@ -293,6 +69,7 @@ const getProduct = async (req, res) => {
     const data = await ProductsModel.findById(id)
       .populate('category', CATEGORY_FIELDS)
       .populate('supplier', SUPPLIER_FIELDS)
+      .lean()
     if (!data)
       return res.status(404).json({ message: 'Producto no encontrado' })
     res.status(200).json(data)
@@ -390,7 +167,7 @@ const updateProduct = async (req, res) => {
         isActive
       },
       { returnDocument: 'after' }
-    )
+    ).lean()
     if (!data)
       return res.status(404).json({ message: 'Producto no encontrado' })
     res.status(200).json(data)

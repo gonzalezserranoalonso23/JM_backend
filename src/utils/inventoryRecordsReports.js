@@ -16,7 +16,6 @@ import {
   getPagination
 } from './pagination.js'
 import { productTokenMatch, searchTokens } from './productSearch.js'
-import { isIssueType } from './inventoryRecordsShared.js'
 
 const DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/
 
@@ -25,6 +24,7 @@ const toDouble = (input) => ({
 })
 
 // One Mongo pass: count, total, distinct products, and profit by type.
+// Profit uses stored record prices; falls back to the product when missing.
 const summarizeMovements = async (match) => {
   const rows = await InventoryRecord.aggregate([
     { $match: match },
@@ -42,6 +42,7 @@ const summarizeMovements = async (match) => {
         from: Product.collection.collectionName,
         localField: 'productName',
         foreignField: '_id',
+        pipeline: [{ $project: { purchasePrice: 1 } }],
         as: 'product'
       }
     },
@@ -155,24 +156,33 @@ const getDailySalesSummary = async (req, res) => {
   }
 
   try {
-    const records = await InventoryRecord.find({ date })
-      .populate('typeInventory', TYPE_INVENTORY_FIELDS)
-      .populate('paymentType', PAYMENT_TYPE_FIELDS)
-      .populate('productName', PRODUCT_NAME_FIELDS)
+    const issueTypes = await TypeInventory.find({ stockDirection: -1 })
+      .select('_id')
       .lean()
+    const issueIds = issueTypes.map((type) => type._id)
+    const exitMatch = issueIds.length
+      ? { date, typeInventory: { $in: issueIds } }
+      : null
 
-    const exits = records.filter((record) => isIssueType(record.typeInventory))
-    const totalSales = exits.reduce(
-      (sum, record) => sum + parseFloat(record.totalAmount),
-      0
-    )
+    const [totals] = exitMatch
+      ? await InventoryRecord.aggregate([
+          { $match: exitMatch },
+          {
+            $group: {
+              _id: null,
+              totalSales: { $sum: '$totalAmount' },
+              totalTransactions: { $sum: 1 },
+              productsSold: { $sum: '$quantity' }
+            }
+          }
+        ])
+      : []
 
     res.status(200).json({
       date,
-      totalSales,
-      totalTransactions: exits.length,
-      productsSold: exits.length,
-      transactions: exits
+      totalSales: roundMoney(totals?.totalSales || 0),
+      totalTransactions: totals?.totalTransactions || 0,
+      productsSold: roundMoney(totals?.productsSold || 0)
     })
   } catch (error) {
     console.error(error)
@@ -218,6 +228,7 @@ const getLowStockProducts = async (req, res) => {
     const query = Product.find(filter)
       .populate('category', CATEGORY_FIELDS)
       .populate('supplier', SUPPLIER_FIELDS)
+      .lean()
 
     if (!pagination.requested) {
       return res.status(200).json(await query)
@@ -281,6 +292,8 @@ const getSalesByDateRange = async (req, res) => {
       .populate('productName', PRODUCT_REPORT_FIELDS)
       .select('-User')
       .sort({ date: -1 })
+      .lean()
+
     const records = pagination.requested
       ? await query.skip(pagination.skip).limit(pagination.limit)
       : await query
@@ -299,22 +312,28 @@ const getSalesByDateRange = async (req, res) => {
       ])
     )
 
-    const response = {
+    const base = {
       startDate,
       endDate,
       totalRevenue,
-      totalRecords: records.length,
       byType,
-      allRecords: records,
       summary
     }
 
-    if (!pagination.requested) return res.status(200).json(response)
+    if (!pagination.requested) {
+      return res.status(200).json({
+        ...base,
+        totalRecords: records.length,
+        allRecords: records
+      })
+    }
 
     const total = await InventoryRecord.countDocuments(filter)
     return res.status(200).json({
       ...createPaginatedResponse(records, total, pagination),
-      ...response
+      ...base,
+      totalRecords: total,
+      allRecords: records
     })
   } catch (error) {
     console.error(error)
@@ -334,20 +353,39 @@ const getInventoryByType = async (req, res) => {
         .json({ message: 'ID de tipo de inventario inválido' })
     }
 
-    const records = await InventoryRecord.find({
-      typeInventory: type
-    })
+    const pagination = getPagination(req.query)
+    if (pagination.error) {
+      return res.status(400).json({ message: pagination.error })
+    }
+
+    const query = InventoryRecord.find({ typeInventory: type })
       .populate('typeInventory', TYPE_INVENTORY_FIELDS)
       .populate('paymentType', PAYMENT_TYPE_FIELDS)
       .populate('productName', PRODUCT_NAME_FIELDS)
       .populate('category', CATEGORY_FIELDS)
       .select('-User')
       .sort({ date: -1 })
+      .lean()
 
-    res.status(200).json({
+    if (!pagination.requested) {
+      const records = await query
+      return res.status(200).json({
+        type,
+        count: records.length,
+        records
+      })
+    }
+
+    const filter = { typeInventory: type }
+    const [records, total] = await Promise.all([
+      query.skip(pagination.skip).limit(pagination.limit),
+      InventoryRecord.countDocuments(filter)
+    ])
+
+    return res.status(200).json({
+      ...createPaginatedResponse(records, total, pagination),
       type,
-      count: records.length,
-      records
+      count: total
     })
   } catch (error) {
     console.error(error)

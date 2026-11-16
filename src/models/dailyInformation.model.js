@@ -25,6 +25,6 @@ const DailyInformationSchema = createSchema({
   }
 })
 
-DailyInformationSchema.index({ date: 1 })
+DailyInformationSchema.index({ date: -1 })
 
 export default mongoose.model('DailyInformation', DailyInformationSchema)

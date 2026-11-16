@@ -32,17 +32,18 @@ const getSuppliers = async (req, res) => {
         { supplierPhone: regex }
       ]
     }
-    const query = SuppliersModel.find(filter)
+    const base = () => SuppliersModel.find(filter)
     if (!pagination.requested) {
-      const data = await query
+      const data = await base().sort({ suppliersName: 1 }).lean()
       return res.status(200).json(data)
     }
 
     const [data, total] = await Promise.all([
-      query
+      base()
         .sort({ suppliersName: 1 })
         .skip(pagination.skip)
-        .limit(pagination.limit),
+        .limit(pagination.limit)
+        .lean(),
       SuppliersModel.countDocuments(filter)
     ])
 
@@ -62,7 +63,7 @@ const getSupplier = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   try {
-    const data = await SuppliersModel.findById(id)
+    const data = await SuppliersModel.findById(id).lean()
     if (!data)
       return res.status(404).json({ message: 'Proveedor no encontrado' })
     res.status(200).json(data)
@@ -130,7 +131,7 @@ const updateSupplier = async (req, res) => {
         isActive
       },
       { returnDocument: 'after' }
-    )
+    ).lean()
     if (!data)
       return res.status(404).json({ message: 'Proveedor no encontrado' })
     res.status(200).json(data)

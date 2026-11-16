@@ -63,7 +63,8 @@ const getOrders = async (req, res) => {
   try {
     const filter = await orderFilter(req.query?.search)
     if (!pagination.requested) {
-      const data = await listOrders(filter).lean()
+      // Safety cap for unpaginated listing on a growing collection.
+      const data = await listOrders(filter).limit(500).lean()
       return res.status(200).json(data.sort(pendingFirst))
     }
 
@@ -94,6 +95,7 @@ const getOrder = (req, res) => {
 
   Order.findById(id)
     .populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
+    .lean()
     .then((data) => {
       if (!data) {
         return res.status(404).json({ message: 'Orden no encontrada' })
@@ -129,7 +131,9 @@ const createOrder = (req, res) => {
   newOrder
     .save()
     .then((data) => {
-      return Order.findById(data._id).populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
+      return Order.findById(data._id)
+        .populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
+        .lean()
     })
     .then((data) => res.status(201).json(data))
     .catch((error) => {
@@ -167,6 +171,7 @@ const updateOrder = (req, res) => {
     { returnDocument: 'after', runValidators: true }
   )
     .populate(SUPPLIER_PATH, SUPPLIER_FIELDS)
+    .lean()
     .then((data) => {
       if (!data) {
         return res.status(404).json({ message: 'Orden no encontrada' })

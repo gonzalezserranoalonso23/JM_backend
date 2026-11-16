@@ -57,6 +57,8 @@ const userSchema = createSchema({
   }
 })
 
+userSchema.index({ role: 1, username: 1 })
+
 userSchema.statics.findAuthState = function (id) {
   return this.findById(id)
     .select('tokenVersion role')

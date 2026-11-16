@@ -50,6 +50,10 @@ const InventoryRecordSchema = createSchema({
   }
 })
 
-InventoryRecordSchema.index({ date: 1, typeInventory: 1, paymentType: 1 })
+InventoryRecordSchema.index({ date: -1, _id: -1 })
+InventoryRecordSchema.index({ date: -1, typeInventory: 1, paymentType: 1, _id: -1 })
+InventoryRecordSchema.index({ typeInventory: 1, date: -1, _id: -1 })
+InventoryRecordSchema.index({ paymentType: 1, date: -1, _id: -1 })
+InventoryRecordSchema.index({ productName: 1, date: -1, _id: -1 })
 
 export default mongoose.model('InventoryRecord', InventoryRecordSchema)
