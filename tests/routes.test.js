@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import CategoriesRouter from '../src/routes/categories.routes.js'
 import DailyInformationRouter from '../src/routes/dailyInformation.routes.js'
 import InventoryRecordRouter from '../src/routes/inventoryRecords.routes.js'
-import OrdersRouter from '../src/routes/orders.routes.js'
 import PaymentTypeRouter from '../src/routes/paymentTypes.routes.js'
 import ProductsRouter from '../src/routes/products.routes.js'
 import SuppliersRouter from '../src/routes/suppliers.routes.js'
@@ -45,13 +44,16 @@ describe('Route registration smoke tests', () => {
     expect(getRoutes(ProductsRouter)).toEqual(
       expect.arrayContaining([
         { method: 'GET', path: '/' },
-        { method: 'GET', path: '/promotions' },
         { method: 'GET', path: '/:id' },
         { method: 'POST', path: '/' },
         { method: 'PUT', path: '/:id' },
         { method: 'DELETE', path: '/:id' }
       ])
     )
+    expect(getRoutes(ProductsRouter)).not.toContainEqual({
+      method: 'GET',
+      path: '/promotions'
+    })
   })
 
   it('declares all inventory routes', () => {
@@ -122,18 +124,6 @@ describe('Route registration smoke tests', () => {
 
   it('declares all daily information routes', () => {
     expect(getRoutes(DailyInformationRouter)).toEqual(
-      expect.arrayContaining([
-        { method: 'GET', path: '/' },
-        { method: 'GET', path: '/:id' },
-        { method: 'POST', path: '/' },
-        { method: 'PUT', path: '/:id' },
-        { method: 'DELETE', path: '/:id' }
-      ])
-    )
-  })
-
-  it('declares all order routes', () => {
-    expect(getRoutes(OrdersRouter)).toEqual(
       expect.arrayContaining([
         { method: 'GET', path: '/' },
         { method: 'GET', path: '/:id' },

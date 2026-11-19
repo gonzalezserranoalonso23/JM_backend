@@ -55,15 +55,6 @@ vi.mock('../src/models/products.model.js', () => ({
   })
 }))
 
-vi.mock('../src/models/orders.model.js', () => ({
-  default: makeModel({
-    find: vi.fn(),
-    findById: vi.fn(),
-    findByIdAndUpdate: vi.fn(),
-    findByIdAndDelete: vi.fn()
-  })
-}))
-
 vi.mock('../src/models/suppliers.model.js', () => ({
   default: makeModel({
     find: vi.fn(),
@@ -129,7 +120,6 @@ import {
   createInventoryRecord,
   getInventoryRecords
 } from '../src/controllers/inventoryRecords.controller.js'
-import { getOrders } from '../src/controllers/orders.controller.js'
 import {
   createProduct,
   getProducts
@@ -145,7 +135,6 @@ import { getUsers, loginUser } from '../src/controllers/users.controller.js'
 import UsersModel from '../src/models/users.model.js'
 import ProductModel from '../src/models/products.model.js'
 import InventoryRecord from '../src/models/inventoryRecords.model.js'
-import OrderModel from '../src/models/orders.model.js'
 import SupplierModel from '../src/models/suppliers.model.js'
 import TypeInventoryModel from '../src/models/typeInventory.model.js'
 import TaskModel from '../src/models/tasks.model.js'
@@ -267,15 +256,6 @@ describe('Controller smoke tests', () => {
     )
 
     await getInventoryRecords({}, res)
-
-    expect(res.status).toHaveBeenCalledWith(200)
-  })
-
-  it('lists orders', async () => {
-    OrderModel.find.mockReturnValue(mockQuery([{ _id: 'o-1' }]))
-
-    const res = mockRes()
-    await getOrders({}, res)
 
     expect(res.status).toHaveBeenCalledWith(200)
   })

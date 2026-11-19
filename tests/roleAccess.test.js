@@ -11,7 +11,6 @@ import suppliersRouter from '../src/routes/suppliers.routes.js'
 import productsRouter from '../src/routes/products.routes.js'
 import inventoryRecordsRouter from '../src/routes/inventoryRecords.routes.js'
 import dailyInformationRouter from '../src/routes/dailyInformation.routes.js'
-import ordersRouter from '../src/routes/orders.routes.js'
 import tasksRouter from '../src/routes/tasks.routes.js'
 import pushNotificationsRouter from '../src/routes/pushNotifications.routes.js'
 import denominationsRouter from '../src/routes/denominations.routes.js'
@@ -35,7 +34,6 @@ const MOUNTS = [
   ['/api/products', productsRouter],
   ['/api/inventory-records', inventoryRecordsRouter],
   ['/api/daily-information', dailyInformationRouter],
-  ['/api/orders', ordersRouter],
   ['/api/tasks', tasksRouter],
   ['/api/push', pushNotificationsRouter],
   ['/api/denominations', denominationsRouter],
@@ -62,7 +60,6 @@ const FULL_ACCESS_ROUTES = new Set([
   'PUT /api/users/:id',
   'DELETE /api/users/:id',
   'DELETE /api/inventory-records/:id',
-  'DELETE /api/orders/:id',
   'POST /api/denominations/open',
   'PUT /api/denominations'
 ])
@@ -73,7 +70,6 @@ const OPEN_ENTRIES = [
   ['get', '/api/suppliers'],
   ['get', '/api/payment-types'],
   ['get', '/api/type-inventory'],
-  ['get', '/api/orders'],
   ['get', '/api/tasks'],
   ['get', '/api/tasks/pending'],
   ['get', '/api/tasks/completed'],
@@ -289,8 +285,6 @@ describe('acceso por rol', () => {
     for (const name of ROLE_NAMES) {
       const movement = await call(name, 'post', '/api/inventory-records')
       expect(movement.status, name).toBe(400)
-      const order = await call(name, 'post', '/api/orders')
-      expect(order.status, name).toBe(400)
     }
   })
 

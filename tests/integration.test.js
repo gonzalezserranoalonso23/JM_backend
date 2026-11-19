@@ -11,7 +11,6 @@ import Attendance, {
   ensureAttendanceIndexes
 } from '../src/models/attendance.model.js'
 import { closeExpiredAttendance } from '../src/services/attendance.service.js'
-import { ORDER_STATUS } from '../src/models/orders.model.js'
 import { ensureRoles } from '../src/models/roles.model.js'
 
 const weekSchedule = (enabledDay) =>
@@ -393,7 +392,7 @@ describe('Integración con MongoDB real', () => {
     expect(invalid.status).toBe(400)
   })
 
-  it('flujo completo: producto, órdenes, inventario, stock y reportes', async () => {
+  it('flujo completo: producto, inventario, stock y reportes', async () => {
     const category = (
       await api('post', '/api/categories').send({ categories: 'Abarrotes' })
     ).body
@@ -646,31 +645,6 @@ describe('Integración con MongoDB real', () => {
     expect(miss.body.data).toEqual([])
     await api('put', `/api/products/${product._id}`).send({ isActive: false })
 
-    // Órdenes
-    const order = await api('post', '/api/orders').send({
-      date: '2026-10-06',
-      supplier: supplier._id,
-      items: [
-        {
-          productId: product._id,
-          productName: 'Leche entera',
-          quantity: 10,
-          price: 15,
-          subtotal: 150
-        }
-      ],
-      totalAmount: 150
-    })
-    expect(order.status, JSON.stringify(order.body)).toBe(201)
-    expect((await api('get', '/api/orders')).status).toBe(200)
-    expect((await api('get', `/api/orders/${order.body._id}`)).status).toBe(200)
-    const confirm = await api('put', `/api/orders/${order.body._id}`).send({
-      status: ORDER_STATUS.confirmed
-    })
-    expect(confirm.body.status).toBe(ORDER_STATUS.confirmed)
-    expect((await api('delete', `/api/orders/${order.body._id}`)).status).toBe(
-      200
-    )
     expect(
       (await api('delete', `/api/inventory-records/${issue.body._id}`)).status
     ).toBe(200)
@@ -996,7 +970,6 @@ describe('Integración con MongoDB real', () => {
       '/api/products',
       '/api/categories',
       '/api/suppliers',
-      '/api/orders',
       '/api/tasks',
       '/api/users',
       '/api/inventory-records',
@@ -1006,7 +979,7 @@ describe('Integración con MongoDB real', () => {
       expect((await api('get', `${base}/no-es-id`)).status, base).toBe(400)
     }
     expect((await api('post', '/api/products').send({})).status).toBe(400)
-    expect((await api('post', '/api/orders').send({})).status).toBe(400)
+    expect((await api('get', '/api/orders')).status).toBe(404)
   })
 })
 

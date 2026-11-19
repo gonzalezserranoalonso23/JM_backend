@@ -8,7 +8,6 @@ import typeInventoryRouter from './typeInventory.routes.js'
 import paymentTypesRouter from './paymentTypes.routes.js'
 import inventoryRecordsRouter from './inventoryRecords.routes.js'
 import dailyInformationRouter from './dailyInformation.routes.js'
-import ordersRouter from './orders.routes.js'
 import tasksRouter from './tasks.routes.js'
 import attendanceRouter from './attendance.routes.js'
 import denominationsRouter from './denominations.routes.js'
@@ -42,10 +41,9 @@ export const registerRoutes = (app) => {
   app.use('/api/type-inventory', typeInventoryRouter)
   app.use('/api/payment-types', paymentTypesRouter)
 
-  // Day-to-day work: stock, sales, orders, shifts, and alerts.
+  // Day-to-day work: stock, sales, shifts, and alerts.
   app.use('/api/inventory-records', inventoryRecordsRouter)
   app.use('/api/daily-information', dailyInformationRouter)
-  app.use('/api/orders', ordersRouter)
   app.use('/api/tasks', tasksRouter)
   app.use('/api/attendance', attendanceRouter)
   app.use('/api/denominations', denominationsRouter)

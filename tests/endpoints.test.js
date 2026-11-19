@@ -110,10 +110,6 @@ vi.mock('../src/models/dailyInformation.model.js', () => ({
 vi.mock('../src/models/inventoryRecords.model.js', () => ({
   default: makeModel()
 }))
-vi.mock('../src/models/orders.model.js', () => ({
-  default: makeModel(),
-  ORDER_STATUS: { pending: 'pendiente', confirmed: 'confirmado' }
-}))
 vi.mock('../src/models/products.model.js', () => ({
   default: makeModel()
 }))
@@ -146,7 +142,6 @@ vi.mock('../src/models/pushNotifications.model.js', () => ({
 import CategoriesRouter from '../src/routes/categories.routes.js'
 import DailyInformationRouter from '../src/routes/dailyInformation.routes.js'
 import InventoryRecordRouter from '../src/routes/inventoryRecords.routes.js'
-import OrdersRouter from '../src/routes/orders.routes.js'
 import ProductsRouter from '../src/routes/products.routes.js'
 import SuppliersRouter from '../src/routes/suppliers.routes.js'
 import TasksRouter from '../src/routes/tasks.routes.js'
@@ -156,7 +151,6 @@ import PushNotificationsRouter from '../src/routes/pushNotifications.routes.js'
 import CategoriesModel from '../src/models/categories.model.js'
 import DailyInformationModel from '../src/models/dailyInformation.model.js'
 import InventoryRecordModel from '../src/models/inventoryRecords.model.js'
-import OrdersModel from '../src/models/orders.model.js'
 import ProductModel from '../src/models/products.model.js'
 import SupplierModel from '../src/models/suppliers.model.js'
 import TaskModel from '../src/models/tasks.model.js'
@@ -168,7 +162,6 @@ const routers = [
   ['/api/categories', CategoriesRouter],
   ['/api/daily-information', DailyInformationRouter],
   ['/api/inventory-records', InventoryRecordRouter],
-  ['/api/orders', OrdersRouter],
   ['/api/products', ProductsRouter],
   ['/api/suppliers', SuppliersRouter],
   ['/api/tasks', TasksRouter],
@@ -204,7 +197,6 @@ const modelsByPrefix = {
   '/api/categories': CategoriesModel,
   '/api/daily-information': DailyInformationModel,
   '/api/inventory-records': InventoryRecordModel,
-  '/api/orders': OrdersModel,
   '/api/products': ProductModel,
   '/api/suppliers': SupplierModel,
   '/api/tasks': TaskModel,
@@ -231,11 +223,6 @@ const missingResultMethod = {
     get: 'findById',
     put: 'findOneAndUpdate',
     delete: 'deleteOne'
-  },
-  '/api/orders': {
-    get: 'findById',
-    put: 'findByIdAndUpdate',
-    delete: 'findByIdAndDelete'
   },
   '/api/products': {
     get: 'findById',
@@ -284,7 +271,6 @@ const requestBody = (endpoint) => {
     supplier: TEST_ID,
     supplierPhone: '5551234567',
     suppliersName: 'Proveedor de prueba',
-    items: [{ productId: TEST_ID, quantity: 1, price: 20 }],
     totalAmount: 20,
     title: 'Tarea de prueba',
     description: 'Descripción de prueba',
@@ -553,7 +539,7 @@ describe('HTTP endpoint coverage', () => {
     expect(invalidInventoryType.status).toBe(400)
   })
 
-  it('validates required request fields on login, tasks, orders and bulk inventory', async () => {
+  it('validates required request fields on login, tasks and bulk inventory', async () => {
     const missingLoginFields = await request(app)
       .post('/api/users/login')
       .send({})
@@ -563,11 +549,6 @@ describe('HTTP endpoint coverage', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({})
 
-    const missingOrderItems = await request(app)
-      .post('/api/orders')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ supplier: TEST_ID, items: [] })
-
     const emptyBulkInventory = await request(app)
       .post('/api/inventory-records/bulk')
       .set('Authorization', `Bearer ${token}`)
@@ -575,7 +556,6 @@ describe('HTTP endpoint coverage', () => {
 
     expect(missingLoginFields.status).toBe(400)
     expect(missingTaskTitle.status).toBe(400)
-    expect(missingOrderItems.status).toBe(400)
     expect(emptyBulkInventory.status).toBe(400)
   })
 })

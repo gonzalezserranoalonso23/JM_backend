@@ -3,7 +3,6 @@ import {
   getProduct,
   getProductLookup,
   getProducts,
-  getPromotionProducts,
   createProduct,
   updateProduct,
   deleteProduct
@@ -13,7 +12,6 @@ import verifyToken, { requireAdmin } from '../middleware/verifyToken.js'
 const router = Router()
 
 router.get('/', verifyToken, getProducts)
-router.get('/promotions', verifyToken, getPromotionProducts)
 router.get('/lookup', verifyToken, getProductLookup)
 router.get('/:id', verifyToken, getProduct)
 router.post('/', verifyToken, requireAdmin, createProduct)

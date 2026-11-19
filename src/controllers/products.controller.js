@@ -7,8 +7,7 @@ import { isValidObjectId } from 'mongoose'
 import { getPagination } from '../utils/pagination.js'
 import {
   findProductLookup,
-  listProducts,
-  listPromotionProducts
+  listProducts
 } from '../services/products.service.js'
 
 const getProducts = async (req, res) => {
@@ -23,26 +22,6 @@ const getProducts = async (req, res) => {
   } catch (error) {
     console.error(error)
     return res.status(500).json({ message: 'Error al cargar los productos' })
-  }
-}
-
-const getPromotionProducts = async (req, res) => {
-  const pagination = getPagination(req.query)
-  if (pagination.error) {
-    return res.status(400).json({ message: pagination.error })
-  }
-
-  try {
-    const result = await listPromotionProducts(req.query, pagination)
-    return res.status(200).json(result)
-  } catch (error) {
-    if (error.status) {
-      return res.status(error.status).json({ message: error.message })
-    }
-    console.error(error)
-    return res.status(500).json({
-      message: 'Error al cargar los productos en promoción'
-    })
   }
 }
 
@@ -192,7 +171,6 @@ export {
   getProduct,
   getProductLookup,
   getProducts,
-  getPromotionProducts,
   createProduct,
   updateProduct,
   deleteProduct

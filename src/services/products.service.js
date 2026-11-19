@@ -2,7 +2,6 @@ import { CATEGORY_FIELDS, SUPPLIER_FIELDS } from '../utils/projections.js'
 import ProductsModel from '../models/products.model.js'
 import SuppliersModel from '../models/suppliers.model.js'
 import CategoriesModel from '../models/categories.model.js'
-import mongoose, { isValidObjectId } from 'mongoose'
 import {
   accentInsensitiveRegex,
   createPaginatedResponse
@@ -98,90 +97,6 @@ export const listProducts = async (queryParams = {}, pagination) => {
       $facet: {
         meta: [{ $count: 'total' }],
         data: [...pageStages, ...lookupStages(), { $unset: 'textHit' }]
-      }
-    }
-  ])
-  const data = result?.data ?? []
-  const total = result?.meta?.[0]?.total ?? 0
-  return pagination.requested
-    ? createPaginatedResponse(data, total, pagination)
-    : data
-}
-
-const MIN_MARGIN = 30
-const margin = {
-  $round: [
-    {
-      $multiply: [
-        {
-          $divide: [
-            { $subtract: ['$productPrice', '$purchasePrice'] },
-            '$productPrice'
-          ]
-        },
-        100
-      ]
-    },
-    2
-  ]
-}
-
-export const listPromotionProducts = async (queryParams = {}, pagination) => {
-  const match = {
-    isActive: { $ne: false },
-    productPrice: { $gt: 0 },
-    $expr: { $gte: [margin, MIN_MARGIN] }
-  }
-
-  const search =
-    typeof queryParams?.search === 'string' ? queryParams.search.trim() : ''
-  if (search) {
-    const tokens = searchTokens(search)
-    if (!tokens.length) {
-      return pagination.requested
-        ? createPaginatedResponse([], 0, pagination)
-        : []
-    }
-    Object.assign(match, productTokenMatch(tokens))
-  }
-
-  const { category } = queryParams
-  if (category) {
-    if (!isValidObjectId(category)) {
-      const error = new Error('Categoría inválida')
-      error.status = 400
-      throw error
-    }
-    match.category = new mongoose.Types.ObjectId(category)
-  }
-
-  const pageStages = pagination.requested
-    ? [{ $skip: pagination.skip }, { $limit: pagination.limit }]
-    : []
-  const [result] = await ProductsModel.aggregate([
-    { $match: match },
-    { $addFields: { margin } },
-    { $sort: { productName: 1 } },
-    {
-      $facet: {
-        meta: [{ $count: 'total' }],
-        data: [
-          ...pageStages,
-          {
-            $lookup: {
-              from: CategoriesModel.collection.name,
-              localField: 'category',
-              foreignField: '_id',
-              pipeline: [{ $project: project(CATEGORY_FIELDS) }],
-              as: 'category'
-            }
-          },
-          {
-            $set: {
-              category: { $ifNull: [{ $arrayElemAt: ['$category', 0] }, null] }
-            }
-          }
-        ]
       }
     }
   ])
