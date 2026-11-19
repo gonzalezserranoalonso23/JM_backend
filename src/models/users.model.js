@@ -50,6 +50,16 @@ const userSchema = createSchema({
     type: scheduleSchema,
     default: undefined
   },
+  salary: {
+    type: Number,
+    min: [0, 'El salario semanal no puede ser negativo'],
+    required: [
+      function () {
+        return this.haveSchedule === true
+      },
+      'El salario semanal es requerido para usuarios con horario'
+    ]
+  },
   // Bump to invalidate every token already issued for this user.
   tokenVersion: {
     type: Number,

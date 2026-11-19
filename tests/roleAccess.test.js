@@ -23,7 +23,7 @@ import { ROLE_NAMES } from '../src/models/roles.model.js'
 process.env.SECURITY_JM = 'role-access-secret'
 
 const FULL_ACCESS = ['Sudo', 'Manager', 'Supervisor']
-const LIMITED = ['Staff', 'User']
+const LIMITED = ['Staff']
 const MISSING_ID = '507f1f77bcf86cd799439011'
 
 const MOUNTS = [
@@ -202,7 +202,7 @@ describe('acceso por rol', () => {
     }
   })
 
-  it('Staff y User no crean, editan ni eliminan lo reservado', async () => {
+  it('Staff no crea, edita ni elimina lo reservado', async () => {
     const reserved = registeredRoutes().filter((route) => route.admin)
     for (const name of LIMITED) {
       for (const route of reserved) {
@@ -237,7 +237,7 @@ describe('acceso por rol', () => {
     }
   })
 
-  it('Manager y Supervisor crean, editan y eliminan; Staff y User solo consultan', async () => {
+  it('Manager y Supervisor crean, editan y eliminan; Staff solo consulta', async () => {
     for (const name of FULL_ACCESS) {
       const created = await request(app)
         .post('/api/categories')
@@ -271,7 +271,7 @@ describe('acceso por rol', () => {
     }
   })
 
-  it('los cuatro roles crean un pendiente y Staff sigue registrando movimientos', async () => {
+  it('los roles vigentes crean un pendiente y Staff sigue registrando movimientos', async () => {
     for (const name of ROLE_NAMES) {
       const created = await request(app)
         .post('/api/tasks')
@@ -294,24 +294,97 @@ describe('acceso por rol', () => {
     }
   })
 
+  it('Staff solo ve y gestiona pendientes propios o asignados', async () => {
+    const managerUser = await UserModel.findOne({ username: 'manager' })
+    const staffUser = await UserModel.findOne({ username: 'staff' })
+    const staffCreated = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${tokens.Staff}`)
+      .send({ title: 'Pendiente propio' })
+    expect(staffCreated.status).toBe(201)
+
+    const forbiddenAssignment = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${tokens.Staff}`)
+      .send({ title: 'Pendiente ajeno', assignedTo: String(managerUser._id) })
+    expect(forbiddenAssignment.status).toBe(403)
+
+    const foreignTask = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${tokens.Manager}`)
+      .send({
+        title: 'Pendiente de otro usuario',
+        assignedTo: String(managerUser._id)
+      })
+    expect(foreignTask.status).toBe(201)
+
+    const assignedToStaff = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${tokens.Manager}`)
+      .send({
+        title: 'Pendiente asignado a Staff',
+        assignedTo: String(staffUser._id)
+      })
+    expect(assignedToStaff.status).toBe(201)
+
+    const staffPending = await request(app)
+      .get('/api/tasks/pending')
+      .set('Authorization', `Bearer ${tokens.Staff}`)
+    expect(staffPending.status).toBe(200)
+    const visibleTasks = staffPending.body.data || staffPending.body
+    const visibleIds = visibleTasks.map((task) => String(task._id))
+    expect(visibleIds).toContain(String(staffCreated.body._id))
+    expect(visibleIds).toContain(String(assignedToStaff.body._id))
+    expect(visibleIds).not.toContain(String(foreignTask.body._id))
+    expect(
+      (
+        await request(app)
+          .get(`/api/tasks/${foreignTask.body._id}`)
+          .set('Authorization', `Bearer ${tokens.Staff}`)
+      ).status
+    ).toBe(404)
+    expect(
+      (
+        await request(app)
+          .put(`/api/tasks/${foreignTask.body._id}`)
+          .set('Authorization', `Bearer ${tokens.Staff}`)
+          .send({ status: 'completed' })
+      ).status
+    ).toBe(403)
+    expect(
+      (
+        await request(app)
+          .put(`/api/tasks/${assignedToStaff.body._id}`)
+          .set('Authorization', `Bearer ${tokens.Staff}`)
+          .send({ assignedTo: String(managerUser._id) })
+      ).status
+    ).toBe(403)
+
+    await request(app)
+      .delete(`/api/tasks/${staffCreated.body._id}`)
+      .set('Authorization', `Bearer ${tokens.Staff}`)
+    await request(app)
+      .delete(`/api/tasks/${foreignTask.body._id}`)
+      .set('Authorization', `Bearer ${tokens.Manager}`)
+    await request(app)
+      .delete(`/api/tasks/${assignedToStaff.body._id}`)
+      .set('Authorization', `Bearer ${tokens.Manager}`)
+  })
+
   it('sudo no aparece para los demás ni recibe pendientes', async () => {
     const visible = await call('Sudo', 'get', '/api/users')
     const sudoUser = visible.body.find((user) => user.username === 'sudo')
     expect(sudoUser?.role?.name).toBe('Sudo')
 
-    for (const name of ['Manager', 'Supervisor', 'Staff', 'User']) {
+    for (const name of ['Manager', 'Supervisor', 'Staff']) {
       const list = await call(name, 'get', '/api/users')
       const names = Array.isArray(list.body) ? list.body : list.body.data
-      expect(list.status, name).toBe(
-        name === 'Staff' || name === 'User' ? 403 : 200
-      )
+      expect(list.status, name).toBe(name === 'Staff' ? 403 : 200)
       if (list.status === 200) {
         expect(names.some((user) => user.role?.name === 'Sudo')).toBe(false)
       }
       const one = await call(name, 'get', `/api/users/${sudoUser._id}`)
-      expect(one.status, name).toBe(
-        name === 'Staff' || name === 'User' ? 403 : 404
-      )
+      expect(one.status, name).toBe(name === 'Staff' ? 403 : 404)
     }
 
     for (const name of ROLE_NAMES) {
@@ -421,5 +494,25 @@ describe('acceso por rol', () => {
       .delete(`/api/roles/${created.body._id}`)
       .set('Authorization', `Bearer ${tokens.Sudo}`)
     expect(removed.status).toBe(200)
+  })
+
+  it('no permite crear ni recuperar el rol retirado', async () => {
+    const created = await request(app)
+      .post('/api/roles')
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ name: 'User' })
+    expect(created.status).toBe(400)
+
+    const customRole = await request(app)
+      .post('/api/roles')
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ name: 'Temporal' })
+    expect(customRole.status).toBe(201)
+
+    const renamed = await request(app)
+      .put(`/api/roles/${customRole.body._id}`)
+      .set('Authorization', `Bearer ${tokens.Sudo}`)
+      .send({ name: 'User' })
+    expect(renamed.status).toBe(400)
   })
 })

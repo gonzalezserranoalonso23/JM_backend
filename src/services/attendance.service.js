@@ -206,6 +206,7 @@ export const readRecordPage = (query = {}) => {
 
 export const getMyAttendanceData = async (userId, query = {}) => {
   const paging = readRecordPage(query)
+  await closeExpiredAttendance()
   const filter = { user: userId }
   if (paging.from || paging.to) {
     filter.date = {}
@@ -221,7 +222,11 @@ export const getMyAttendanceData = async (userId, query = {}) => {
       .limit(RECORD_PAGE_SIZE)
       .lean(),
     Attendance.countDocuments(filter),
-    Attendance.findOne({ user: userId, checkOutAt: null }).lean(),
+    Attendance.findOne({
+      user: userId,
+      checkOutAt: null,
+      closedAt: null
+    }).lean(),
     User.findById(userId).select('haveSchedule schedule').lean()
   ])
 
@@ -248,6 +253,7 @@ export const getAttendanceDayData = async (role, date) => {
     throw error
   }
 
+  await closeExpiredAttendance()
   const sudoId = isSudo(role) ? null : await findSudoRoleId()
   const hiddenIds = sudoId
     ? (await User.find({ role: sudoId }).select('_id').lean()).map((u) => u._id)
@@ -292,10 +298,12 @@ export const checkInUser = async ({ userId, role, body = {} }) => {
     throw error
   }
 
+  await closeExpiredAttendance()
   const position = resolveWorkplacePosition(body, 'entrada')
   const open = await Attendance.findOne({
     user: userId,
-    checkOutAt: null
+    checkOutAt: null,
+    closedAt: null
   }).lean()
   if (open) {
     const error = new Error(
@@ -338,9 +346,11 @@ export const checkOutUser = async ({ userId, role, body = {} }) => {
   const user = await User.findById(userId).select('haveSchedule').lean()
   canPunch(role, user)
 
+  await closeExpiredAttendance()
   const open = await Attendance.findOne({
     user: userId,
-    checkOutAt: null
+    checkOutAt: null,
+    closedAt: null
   }).lean()
   if (!open) {
     const error = new Error('No tienes una entrada abierta')
@@ -358,7 +368,7 @@ export const checkOutUser = async ({ userId, role, body = {} }) => {
 
   const payments = await readPayments(body.supplierPayments)
   const record = await Attendance.findOneAndUpdate(
-    { user: userId, checkOutAt: null },
+    { user: userId, checkOutAt: null, closedAt: null },
     {
       $set: {
         checkOutAt: new Date(),
@@ -378,3 +388,13 @@ export const checkOutUser = async ({ userId, role, body = {} }) => {
   }
   return record
 }
+
+export const closeExpiredAttendance = async (instant = new Date()) =>
+  Attendance.updateMany(
+    {
+      date: { $lt: mexicoCityDate(instant) },
+      checkOutAt: null,
+      closedAt: null
+    },
+    { $set: { closedAt: instant } }
+  )

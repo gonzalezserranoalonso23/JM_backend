@@ -10,7 +10,11 @@
  * User.role stores this _id.
  */
 import { isValidObjectId } from 'mongoose'
-import RoleModel, { ROLE_NAMES, roleRank } from '../models/roles.model.js'
+import RoleModel, {
+  RETIRED_ROLE_NAMES,
+  ROLE_NAMES,
+  roleRank
+} from '../models/roles.model.js'
 import UserModel from '../models/users.model.js'
 
 const sortRoles = (roles) =>
@@ -19,10 +23,12 @@ const sortRoles = (roles) =>
 const withLock = (role) => ({
   _id: role._id,
   name: role.name,
-  locked: ROLE_NAMES.includes(role.name)
+  locked:
+    ROLE_NAMES.includes(role.name) || RETIRED_ROLE_NAMES.includes(role.name)
 })
 
 const readName = (value) => String(value || '').trim()
+const isRetiredRoleName = (name) => RETIRED_ROLE_NAMES.includes(name)
 
 const duplicateRole = (error, res) => {
   if (error?.code !== 11000) return false
@@ -57,6 +63,9 @@ const getRole = async (req, res) => {
 const createRole = async (req, res) => {
   const name = readName(req.body?.name)
   if (!name) return res.status(400).json({ message: 'El nombre es requerido' })
+  if (isRetiredRoleName(name)) {
+    return res.status(400).json({ message: 'Ese rol ya no está disponible' })
+  }
   try {
     const data = await RoleModel.create({ name })
     res.status(201).json(withLock(data))
@@ -73,10 +82,16 @@ const updateRole = async (req, res) => {
   if (!isValidObjectId(id))
     return res.status(400).json({ message: 'ID inválido' })
   if (!name) return res.status(400).json({ message: 'El nombre es requerido' })
+  if (isRetiredRoleName(name)) {
+    return res.status(400).json({ message: 'Ese rol ya no está disponible' })
+  }
   try {
     const current = await RoleModel.findById(id).select('name')
     if (!current) return res.status(404).json({ message: 'Rol no encontrado' })
-    if (ROLE_NAMES.includes(current.name)) {
+    if (
+      ROLE_NAMES.includes(current.name) ||
+      RETIRED_ROLE_NAMES.includes(current.name)
+    ) {
       return res
         .status(403)
         .json({ message: 'Ese rol del sistema no se puede cambiar' })
@@ -101,7 +116,10 @@ const deleteRole = async (req, res) => {
   try {
     const current = await RoleModel.findById(id).select('name')
     if (!current) return res.status(404).json({ message: 'Rol no encontrado' })
-    if (ROLE_NAMES.includes(current.name)) {
+    if (
+      ROLE_NAMES.includes(current.name) ||
+      RETIRED_ROLE_NAMES.includes(current.name)
+    ) {
       return res
         .status(403)
         .json({ message: 'Ese rol del sistema no se puede borrar' })

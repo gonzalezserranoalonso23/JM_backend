@@ -7,7 +7,12 @@ import {
   mexicoCityDate,
   mexicoCityWeekday
 } from '../src/controllers/attendance.controller.js'
+import Attendance, {
+  ensureAttendanceIndexes
+} from '../src/models/attendance.model.js'
+import { closeExpiredAttendance } from '../src/services/attendance.service.js'
 import { ORDER_STATUS } from '../src/models/orders.model.js'
+import { ensureRoles } from '../src/models/roles.model.js'
 
 const weekSchedule = (enabledDay) =>
   Object.fromEntries(
@@ -67,6 +72,25 @@ const crud = (base, createBody, updateBody) => {
 beforeAll(async () => {
   mongod = await MongoMemoryServer.create()
   await mongoose.connect(mongod.getUri(), { dbName: 'jm_test' })
+  const attendanceCollections = await mongoose.connection.db
+    .listCollections(
+      { name: Attendance.collection.collectionName },
+      { nameOnly: true }
+    )
+    .toArray()
+  if (attendanceCollections.length === 0) await Attendance.createCollection()
+  await Attendance.collection.createIndex(
+    { user: 1 },
+    { unique: true, partialFilterExpression: { checkOutAt: null } }
+  )
+  await ensureAttendanceIndexes()
+  const attendanceIndexes = await Attendance.collection.indexes()
+  expect(attendanceIndexes.some((index) => index.name === 'user_1')).toBe(false)
+  expect(
+    attendanceIndexes.some(
+      (index) => index.name === 'one_open_shift_per_user_v2'
+    )
+  ).toBe(true)
   app = (await import('../src/app.js')).default
   const sudo = await mongoose.model('Role').create({ name: 'Sudo' })
   await mongoose.model('Role').create({ name: 'Manager' })
@@ -165,15 +189,24 @@ describe('Integración con MongoDB real', () => {
       isAdmin: false
     })
     expect(upd.status).toBe(200)
+    const missingSalary = await api('put', `/api/users/${found._id}`).send({
+      haveSchedule: true,
+      schedule: {
+        monday: { enabled: true, start: '09:00', end: '18:00' }
+      }
+    })
+    expect(missingSalary.status).toBe(400)
     const scheduled = await api('put', `/api/users/${found._id}`).send({
       isAdmin: true,
       haveSchedule: true,
+      salary: 4500,
       schedule: {
         monday: { enabled: true, start: '09:00', end: '18:00' }
       }
     })
     expect(scheduled.status).toBe(200)
     expect(scheduled.body.haveSchedule).toBe(true)
+    expect(scheduled.body.salary).toBe(4500)
     expect(scheduled.body.schedule.monday).toMatchObject({
       enabled: true,
       start: '09:00',
@@ -199,6 +232,7 @@ describe('Integración con MongoDB real', () => {
     expect(cleared.status).toBe(200)
     expect(cleared.body.haveSchedule).toBe(false)
     expect(cleared.body.schedule).toBeFalsy()
+    expect(cleared.body.salary).toBeUndefined()
     const relogin = await request(app)
       .post('/api/users/login')
       .send({ username: 'nuevo', password: 'abc12345' })
@@ -426,6 +460,7 @@ describe('Integración con MongoDB real', () => {
       totalAmount: 110
     })
     expect(entry.status, JSON.stringify(entry.body)).toBe(201)
+    expect(Number.isNaN(Date.parse(entry.body.createdAt))).toBe(false)
     const issue = await api('post', '/api/inventory-records').send({
       ...base,
       typeInventory: issueTypeId,
@@ -434,6 +469,7 @@ describe('Integración con MongoDB real', () => {
       paymentType: cardPaymentTypeId
     })
     expect(issue.status, JSON.stringify(issue.body)).toBe(201)
+    expect(Number.isNaN(Date.parse(issue.body.createdAt))).toBe(false)
     const tooMuch = await api('post', '/api/inventory-records').send({
       ...base,
       typeInventory: issueTypeId,
@@ -464,6 +500,13 @@ describe('Integración con MongoDB real', () => {
 
     const records = await api('get', '/api/inventory-records')
     expect(records.status).toBe(200)
+    const bulkRecords = records.body.filter((record) =>
+      bulk.body.includes(record._id)
+    )
+    expect(bulkRecords).toHaveLength(2)
+    expect(
+      bulkRecords.every((record) => !Number.isNaN(Date.parse(record.createdAt)))
+    ).toBe(true)
     expect(
       (await api('get', `/api/inventory-records/${entry.body._id}`)).status
     ).toBe(200)
@@ -969,7 +1012,31 @@ describe('Integración con MongoDB real', () => {
 
 describe('Autenticación y roles', () => {
   let regularId
+  let migratedUserId
+  let legacyToken
   beforeAll(async () => {
+    const Role = mongoose.model('Role')
+    const legacyRole = await Role.create({ name: 'User' })
+    const legacyUser = await mongoose.model('User').create({
+      username: 'legacy-user-role',
+      password: 'x',
+      role: legacyRole._id,
+      haveSchedule: true,
+      schedule: weekSchedule(),
+      salary: 1800,
+      tokenVersion: 7
+    })
+    migratedUserId = String(legacyUser._id)
+    legacyToken = jwt.sign(
+      {
+        id: migratedUserId,
+        username: legacyUser.username,
+        role: 'User',
+        tv: 7
+      },
+      process.env.SECURITY_JM
+    )
+    await ensureRoles()
     const regular = await mongoose.model('User').create({
       username: 'regular',
       password: 'x',
@@ -987,6 +1054,93 @@ describe('Autenticación y roles', () => {
     request(app)
       [method](url)
       .set('Authorization', 'Bearer ' + token)
+
+  it('migra el rol retirado a Staff, conserva horario y salario, e invalida sesiones', async () => {
+    const Role = mongoose.model('Role')
+    const migrated = await mongoose
+      .model('User')
+      .findById(migratedUserId)
+      .populate('role', 'name')
+      .lean()
+
+    expect(await Role.exists({ name: 'User' })).toBeNull()
+    expect(migrated.role.name).toBe('Staff')
+    expect(migrated.salary).toBe(1800)
+    expect(migrated.schedule.monday).toEqual({
+      enabled: true,
+      start: '09:00',
+      end: '18:00'
+    })
+    expect(migrated.tokenVersion).toBe(8)
+    expect((await as(legacyToken, 'get', '/api/users/me')).status).toBe(401)
+  })
+
+  it('permite dejar glezalonso23 como Supervisor de forma persistente', async () => {
+    const Role = mongoose.model('Role')
+    const [sudoRole, supervisorRole] = await Promise.all([
+      Role.findOne({ name: 'Sudo' }),
+      Role.findOne({ name: 'Supervisor' })
+    ])
+    const owner = await mongoose.model('User').create({
+      username: 'glezalonso23',
+      password: 'x',
+      role: sudoRole._id
+    })
+    const token = jwt.sign(
+      {
+        id: String(owner._id),
+        username: owner.username,
+        role: 'Sudo',
+        tv: 0
+      },
+      process.env.SECURITY_JM
+    )
+    const updated = await as(token, 'put', `/api/users/${owner._id}`).send({
+      username: owner.username,
+      role: String(supervisorRole._id),
+      haveSchedule: false
+    })
+
+    expect(updated.status, JSON.stringify(updated.body)).toBe(200)
+    expect(updated.body.role.name).toBe('Supervisor')
+
+    await ensureRoles()
+    const persisted = await mongoose
+      .model('User')
+      .findById(owner._id)
+      .populate('role', 'name')
+      .lean()
+    expect(persisted.role.name).toBe('Supervisor')
+  })
+
+  it('conserva la protección de auto-democión para otros usuarios Sudo', async () => {
+    const sudoRole = await mongoose.model('Role').findOne({ name: 'Sudo' })
+    const user = await mongoose.model('User').create({
+      username: 'otro-sudo',
+      password: 'x',
+      role: sudoRole._id
+    })
+    const token = jwt.sign(
+      { id: String(user._id), username: user.username, role: 'Sudo', tv: 0 },
+      process.env.SECURITY_JM
+    )
+    const supervisorRole = await mongoose
+      .model('Role')
+      .findOne({ name: 'Supervisor' })
+    const response = await as(token, 'put', `/api/users/${user._id}`).send({
+      username: user.username,
+      role: String(supervisorRole._id),
+      haveSchedule: false
+    })
+
+    expect(response.status).toBe(400)
+    const unchanged = await mongoose
+      .model('User')
+      .findById(user._id)
+      .populate('role', 'name')
+      .lean()
+    expect(unchanged.role.name).toBe('Sudo')
+  })
 
   it('rechaza sin token, token inválido y esquema incorrecto', async () => {
     expect((await request(app).get('/api/products')).status).toBe(401)
@@ -1115,6 +1269,7 @@ describe('Autenticación y roles', () => {
       isAdmin: false,
       tokenVersion: 0,
       haveSchedule: true,
+      salary: 3000,
       schedule: weekSchedule()
     })
     const token = jwt.sign(
@@ -1153,6 +1308,7 @@ describe('Autenticación y roles', () => {
       isAdmin: false,
       tokenVersion: 0,
       haveSchedule: true,
+      salary: 3000,
       schedule: weekSchedule(
         mexicoCityWeekday() === 'monday' ? 'tuesday' : 'monday'
       )
@@ -1259,6 +1415,7 @@ describe('Autenticación y roles', () => {
     expect(mine.body.limit).toBe(10)
     expect(mine.body.hasNextPage).toBe(false)
     expect(mine.body.records[0].cashReceived).toBe(800)
+    expect((await asStaff('get', '/api/users/me')).body.salary).toBe(3000)
     expect(mine.body.records[0].cashCut).toBe(1250.5)
     expect(
       mine.body.records[0].supplierPayments.reduce(
@@ -1305,6 +1462,7 @@ describe('Autenticación y roles', () => {
       role: manager._id,
       tokenVersion: 0,
       haveSchedule: true,
+      salary: 5000,
       schedule: weekSchedule()
     })
     const bossToken = jwt.sign(
@@ -1338,5 +1496,89 @@ describe('Autenticación y roles', () => {
     expect(withBoss.body.staff.some((user) => user.username === 'jefe')).toBe(
       true
     )
+
+    const stale = await Attendance.create({
+      user: staff._id,
+      date: '2000-01-01',
+      checkInAt: new Date('2000-01-01T15:00:00.000Z'),
+      checkOutAt: null,
+      cashReceived: 0
+    })
+    const nextEntry = await asStaff('post', '/api/attendance/check-in').send(
+      atWork
+    )
+    expect(nextEntry.status, JSON.stringify(nextEntry.body)).toBe(201)
+    const closedStale = await Attendance.findById(stale._id).lean()
+    expect(closedStale.checkOutAt).toBeNull()
+    expect(closedStale.closedAt).toBeTruthy()
+  })
+
+  it('cierra salidas pendientes al pasar la medianoche de Ciudad de México', async () => {
+    const overdueUser = await mongoose.model('User').create({
+      username: 'pendiente',
+      password: 'x',
+      haveSchedule: true,
+      salary: 3000,
+      schedule: weekSchedule()
+    })
+    const currentUser = await mongoose.model('User').create({
+      username: 'al-dia',
+      password: 'x',
+      haveSchedule: true,
+      salary: 3000,
+      schedule: weekSchedule()
+    })
+    const overdue = await Attendance.create({
+      user: overdueUser._id,
+      date: '2026-06-15',
+      checkInAt: new Date('2026-06-15T15:00:00.000Z'),
+      checkOutAt: null,
+      cashReceived: 0
+    })
+    const stillOpen = await Attendance.create({
+      user: currentUser._id,
+      date: '2026-06-16',
+      checkInAt: new Date('2026-06-16T15:00:00.000Z'),
+      checkOutAt: null,
+      cashReceived: 0
+    })
+
+    await closeExpiredAttendance(new Date('2026-06-16T06:00:00.000Z'))
+
+    const closedRecord = await Attendance.findById(overdue._id).lean()
+    const openRecord = await Attendance.findById(stillOpen._id).lean()
+    expect(closedRecord.checkOutAt).toBeNull()
+    expect(closedRecord.closedAt).toEqual(new Date('2026-06-16T06:00:00.000Z'))
+    expect(openRecord.closedAt).toBeNull()
+  })
+
+  it('impide registrar salida en una asistencia de un día anterior', async () => {
+    const user = await mongoose.model('User').create({
+      username: 'salida-tardia',
+      password: 'x',
+      haveSchedule: true,
+      salary: 3000,
+      schedule: weekSchedule()
+    })
+    const record = await Attendance.create({
+      user: user._id,
+      date: '2000-01-01',
+      checkInAt: new Date('2000-01-01T15:00:00.000Z'),
+      checkOutAt: null,
+      cashReceived: 0
+    })
+    const token = jwt.sign(
+      { id: String(user._id), username: user.username, tv: 0 },
+      process.env.SECURITY_JM
+    )
+    const response = await request(app)
+      .post('/api/attendance/check-out')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(response.status).toBe(400)
+    const closed = await Attendance.findById(record._id).lean()
+    expect(closed.checkOutAt).toBeNull()
+    expect(closed.closedAt).toBeTruthy()
   })
 })

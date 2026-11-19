@@ -5,11 +5,12 @@
  */
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
-import { ensureRoles, ensureSudoOwner } from '../models/roles.model.js'
+import { ensureAttendanceIndexes } from '../models/attendance.model.js'
+import { ensureRoles } from '../models/roles.model.js'
 import { dropLegacyAdminFlag, dropLegacyEmail } from '../models/users.model.js'
 import { loadApplicationStatus } from '../models/appState.model.js'
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 // Atlas uses MONGODB_URI. Loose variables stay for older environments.
 export const getMongoUri = () => {
@@ -20,8 +21,8 @@ export const getMongoUri = () => {
 
 const connection = async () => {
   await mongoose.connect(getMongoUri(), { serverSelectionTimeoutMS: 15000 })
+  await ensureAttendanceIndexes()
   await ensureRoles()
-  await ensureSudoOwner()
   await loadApplicationStatus()
   await dropLegacyAdminFlag()
   await dropLegacyEmail()

@@ -13,6 +13,7 @@ import {
   isSudo,
   keepsSchedule,
   listAssignableUsers,
+  normalizeSalary,
   normalizeSchedule,
   readRole,
   sudoIsHidden,
@@ -130,6 +131,7 @@ const registerUser = async (req, res) => {
     guardAssignable(req.role, role)
     const withSchedule =
       keepsSchedule(role?.name) && asBoolean(req.body.haveSchedule) === true
+    const salary = withSchedule ? normalizeSalary(req.body.salary) : undefined
     const newUser = new UserModel({
       username,
       password: passCrypt,
@@ -137,7 +139,7 @@ const registerUser = async (req, res) => {
       ...(role ? { role: role.id } : {}),
       haveSchedule: withSchedule,
       ...(withSchedule
-        ? { schedule: normalizeSchedule(req.body.schedule) }
+        ? { schedule: normalizeSchedule(req.body.schedule), salary }
         : {})
     })
     const saved = await newUser.save()
@@ -154,7 +156,9 @@ const updateUser = async (req, res) => {
   const { username, password, fullName } = req.body
   try {
     const existing = await withRole(
-      UserModel.findById(id).select('username role')
+      UserModel.findById(id).select(
+        'username role haveSchedule schedule salary'
+      )
     ).lean()
     if (!existing || sudoIsHidden(req.role, existing))
       return res.status(404).json({ message: 'Usuario no encontrado' })
@@ -163,10 +167,10 @@ const updateUser = async (req, res) => {
     guardSudoRole(role, username || existing.username, existing, req.userId)
     guardAssignable(req.role, role, existing)
     const effectiveRole = role?.name || existing.role?.name
+    const requestedSchedule =
+      asBoolean(req.body.haveSchedule) ?? Boolean(existing.haveSchedule)
     const haveSchedule =
-      effectiveRole && !keepsSchedule(effectiveRole)
-        ? false
-        : asBoolean(req.body.haveSchedule)
+      effectiveRole && !keepsSchedule(effectiveRole) ? false : requestedSchedule
     const update = Object.fromEntries(
       Object.entries({
         username,
@@ -177,7 +181,12 @@ const updateUser = async (req, res) => {
     )
     const clearSchedule = haveSchedule === false
     if (haveSchedule === true) {
-      update.schedule = normalizeSchedule(req.body.schedule)
+      if (req.body.schedule !== undefined) {
+        update.schedule = normalizeSchedule(req.body.schedule)
+      }
+      update.salary = normalizeSalary(
+        req.body.salary !== undefined ? req.body.salary : existing.salary
+      )
     }
     const revokeSessions = Boolean(password) || Boolean(role)
     if (password) update.password = await hashPassword(password)
@@ -187,7 +196,7 @@ const updateUser = async (req, res) => {
         { _id: id },
         {
           $set: update,
-          ...(clearSchedule ? { $unset: { schedule: '' } } : {}),
+          ...(clearSchedule ? { $unset: { schedule: '', salary: '' } } : {}),
           ...(revokeSessions ? { $inc: { tokenVersion: 1 } } : {})
         },
         { returnDocument: 'after', runValidators: true }

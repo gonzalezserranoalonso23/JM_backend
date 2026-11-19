@@ -19,6 +19,21 @@ export const canManageTask = (task, req) => {
   return asId(task.createdBy) === userId || asId(task.assignedTo) === userId
 }
 
+const taskScope = ({ role, userId } = {}) => {
+  if (grantsFullAccess(role)) return {}
+  const id = asId(userId)
+  if (!id) return { _id: null }
+  return { $or: [{ createdBy: id }, { assignedTo: id }] }
+}
+
+const assertSelfAssignment = (assignee, userId, role) => {
+  if (!grantsFullAccess(role) && assignee && asId(assignee) !== asId(userId)) {
+    const error = new Error('Solo puedes asignar pendientes a ti mismo')
+    error.status = 403
+    throw error
+  }
+}
+
 const notifyAssignee = (userId, task) => {
   const assigneeId = asId(userId)
   if (!assigneeId || !task) return
@@ -96,17 +111,20 @@ export const readPage = (query = {}) =>
     limit: query.limit ?? 20
   })
 
-export const listTasks = async (query = {}, { sort, pagination }) => {
+export const listTasks = async (
+  query = {},
+  { sort, pagination, actor } = {}
+) => {
   const pg = pagination || getPagination(query)
   if (pg.error) {
     const error = new Error(pg.error)
     error.status = 400
     throw error
   }
-  return pageOf({}, sort || { createdAt: -1 }, pg)
+  return pageOf(taskScope(actor), sort || { createdAt: -1 }, pg)
 }
 
-export const listTasksByStatus = async (status, query = {}) => {
+export const listTasksByStatus = async (status, query = {}, actor = {}) => {
   const pg = readPage(query)
   if (pg.error) {
     const error = new Error(pg.error)
@@ -115,10 +133,10 @@ export const listTasksByStatus = async (status, query = {}) => {
   }
   const sort =
     status === TASK_STATUS.completed ? { completedAt: -1 } : { createdAt: -1 }
-  return pageOf({ status }, sort, pg)
+  return pageOf({ status, ...taskScope(actor) }, sort, pg)
 }
 
-export const getTaskById = async (id) => {
+export const getTaskById = async (id, actor = {}) => {
   if (!isValidObjectId(id)) {
     const error = new Error('ID inválido')
     error.status = 400
@@ -130,10 +148,15 @@ export const getTaskById = async (id) => {
     error.status = 404
     throw error
   }
+  if (!canManageTask(task, actor)) {
+    const error = new Error('Pendiente no encontrado')
+    error.status = 404
+    throw error
+  }
   return task
 }
 
-export const createTaskRecord = async ({ body, userId }) => {
+export const createTaskRecord = async ({ body, userId, role }) => {
   const { title, description, priority, assignedTo } = body
   if (!title) {
     const error = new Error('El título es requerido')
@@ -146,6 +169,7 @@ export const createTaskRecord = async ({ body, userId }) => {
     error.status = 400
     throw error
   }
+  assertSelfAssignment(assignee, userId, role)
 
   const newTask = await new Task({
     title,
@@ -194,6 +218,7 @@ export const updateTaskRecord = async ({ id, body, userId, role, req }) => {
       error.status = 400
       throw error
     }
+    assertSelfAssignment(assignee, userId, role)
     task.assignedTo = assignee
     nextAssigneeId = asId(assignee)
   }

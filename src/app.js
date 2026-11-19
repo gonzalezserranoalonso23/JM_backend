@@ -15,7 +15,7 @@ import { handleErrors, notFound } from './middleware/handleErrors.js'
 
 const app = express()
 
-dotenv.config()
+dotenv.config({ quiet: true })
 app.use(morgan('tiny'))
 app.disable('x-powered-by')
 // Behind a proxy, otherwise rate limit sees one IP.

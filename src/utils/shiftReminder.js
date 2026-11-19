@@ -8,9 +8,10 @@ import User from '../models/users.model.js'
 import PushSubscription from '../models/pushNotifications.model.js'
 import { sendPushToUser } from './pushService.js'
 import {
+  closeExpiredAttendance,
   mexicoCityDate,
   mexicoCityWeekday
-} from '../controllers/attendance.controller.js'
+} from '../services/attendance.service.js'
 
 const LEAD_MINUTES = 10
 const MINUTE = 60 * 1000
@@ -76,7 +77,7 @@ export const remindDueShifts = async (instant = new Date()) => {
 
     const already = await Attendance.exists({
       user: user._id,
-      $or: [{ date }, { checkOutAt: null }]
+      $or: [{ date }, { checkOutAt: null, closedAt: null }]
     })
     if (already) continue
 
@@ -110,12 +111,22 @@ export const startShiftReminders = () => {
   const tick = async () => {
     if (running) return
     running = true
+    const instant = new Date()
     try {
-      await remindDueShifts()
-    } catch (error) {
-      console.error(
-        `No se pudieron revisar los avisos de entrada: ${error.message}`
-      )
+      try {
+        await closeExpiredAttendance(instant)
+      } catch (error) {
+        console.error(
+          `No se pudieron cerrar las asistencias sin salida: ${error.message}`
+        )
+      }
+      try {
+        await remindDueShifts(instant)
+      } catch (error) {
+        console.error(
+          `No se pudieron revisar los avisos de entrada: ${error.message}`
+        )
+      }
     } finally {
       running = false
     }

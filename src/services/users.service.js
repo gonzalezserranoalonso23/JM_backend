@@ -10,6 +10,7 @@ import RoleModel, {
   rolesAssignableBy
 } from '../models/roles.model.js'
 import { isApplicationActive } from '../models/appState.model.js'
+import { roundMoney } from '../utils/money.js'
 import { escapeRegex } from '../utils/pagination.js'
 import { USER_FIELDS } from '../utils/projections.js'
 
@@ -81,6 +82,7 @@ export const guardSudoRole = (role, username, existing, actorId) => {
   const ownAccount = existing && String(existing._id) === String(actorId)
   if (
     ownAccount &&
+    existing.username !== SUDO_USERNAME &&
     existing.role?.name === 'Sudo' &&
     role &&
     role.name !== 'Sudo'
@@ -130,6 +132,23 @@ export const normalizeSchedule = (value) => {
     }
   }
   return schedule
+}
+
+export const normalizeSalary = (value) => {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    const error = new Error(
+      'El salario semanal es requerido para usuarios con horario'
+    )
+    error.status = 400
+    throw error
+  }
+  const salary = Number(value)
+  if (!Number.isFinite(salary) || salary < 0) {
+    const error = new Error('El salario semanal debe ser un importe válido')
+    error.status = 400
+    throw error
+  }
+  return roundMoney(salary)
 }
 
 export const authenticateUser = async ({ username, password }) => {

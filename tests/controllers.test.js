@@ -373,7 +373,8 @@ describe('Controller smoke tests', () => {
           title: 'Reponer leche',
           assignedTo: assigneeId
         },
-        user: { id: 'u-admin' }
+        user: { id: 'u-admin' },
+        role: 'Manager'
       },
       res
     )
@@ -393,7 +394,10 @@ describe('Controller smoke tests', () => {
     TaskModel.find.mockReturnValue(mockQuery([{ _id: 't-1' }]))
 
     const res = mockRes()
-    await getTasks({}, res)
+    await getTasks(
+      { query: {}, user: { id: 'u-manager' }, role: 'Manager' },
+      res
+    )
 
     expect(res.status).toHaveBeenCalledWith(200)
   })

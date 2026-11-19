@@ -25,7 +25,8 @@ export const getTasks = async (req, res) => {
   try {
     const tasks = await listTasks(req.query, {
       sort: { createdAt: -1 },
-      pagination
+      pagination,
+      actor: { role: req.role, userId: req.user.id }
     })
     res.status(200).json(hideSudoPeople(tasks, isSudo(req.role)))
   } catch (error) {
@@ -37,7 +38,10 @@ export const getTasks = async (req, res) => {
 
 export const getTask = async (req, res) => {
   try {
-    const task = await getTaskById(req.params.id)
+    const task = await getTaskById(req.params.id, {
+      role: req.role,
+      userId: req.user.id
+    })
     res.status(200).json(hideSudoPeople(task, isSudo(req.role)))
   } catch (error) {
     if (error.status)
@@ -50,7 +54,8 @@ export const createTask = async (req, res) => {
   try {
     const populatedTask = await createTaskRecord({
       body: req.body,
-      userId: req.user.id
+      userId: req.user.id,
+      role: req.role
     })
     res.status(201).json(hideSudoPeople(populatedTask, isSudo(req.role)))
   } catch (error) {
@@ -95,7 +100,14 @@ export const getPendingTasks = async (req, res) => {
   }
 
   try {
-    const pendingTasks = await listTasksByStatus(TASK_STATUS.pending, req.query)
+    const pendingTasks = await listTasksByStatus(
+      TASK_STATUS.pending,
+      req.query,
+      {
+        role: req.role,
+        userId: req.user.id
+      }
+    )
     res.status(200).json(hideSudoPeople(pendingTasks, isSudo(req.role)))
   } catch (error) {
     if (error.status)
@@ -113,7 +125,8 @@ export const getCompletedTasks = async (req, res) => {
   try {
     const completedTasks = await listTasksByStatus(
       TASK_STATUS.completed,
-      req.query
+      req.query,
+      { role: req.role, userId: req.user.id }
     )
     res.status(200).json(hideSudoPeople(completedTasks, isSudo(req.role)))
   } catch (error) {
