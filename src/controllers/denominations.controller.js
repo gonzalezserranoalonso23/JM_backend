@@ -1,17 +1,9 @@
-/**
- * Cash vault. Base: /api/denominations (full access + CASH_VAULT_SECRET)
- *
- * GET  /      latest update time, without quantities
- * POST /open  { secret }
- * PUT  /      { secret, quantities: [{ value, quantity }] }
- */
 import { timingSafeEqual } from 'crypto'
 import Denomination from '../models/denominations.model.js'
 import { roundMoney } from '../utils/money.js'
 import { publicFailure } from '../middleware/handleErrors.js'
 
 export const DENOMINATIONS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5]
-
 const MAX_QUANTITY = 1000000
 
 const secretMatches = (provided) => {
@@ -60,14 +52,11 @@ const snapshot = async () => {
       updatedAt: row?.updatedAt ?? null
     }
   })
-
   const updatedAt = denominations.reduce((latest, row) => {
     if (!row.updatedAt) return latest
-    if (!latest || new Date(row.updatedAt) > new Date(latest))
-      return row.updatedAt
+    if (!latest || new Date(row.updatedAt) > new Date(latest)) return row.updatedAt
     return latest
   }, null)
-
   return {
     denominations,
     total: roundMoney(denominations.reduce((sum, row) => sum + row.amount, 0)),
@@ -79,24 +68,14 @@ const parseQuantities = (quantities) => {
   if (!Array.isArray(quantities)) return null
   const seen = new Set()
   const parsed = []
-
   for (const item of quantities) {
-    const value = DENOMINATIONS.find(
-      (denomination) => denomination === Number(item?.value)
-    )
+    const value = DENOMINATIONS.find((denomination) => denomination === Number(item?.value))
     const quantity = Number(item?.quantity)
     if (value === undefined || seen.has(value)) return null
-    if (
-      !Number.isInteger(quantity) ||
-      quantity < 0 ||
-      quantity > MAX_QUANTITY
-    ) {
-      return null
-    }
+    if (!Number.isInteger(quantity) || quantity < 0 || quantity > MAX_QUANTITY) return null
     seen.add(value)
     parsed.push({ value, quantity })
   }
-
   return parsed.length === DENOMINATIONS.length ? parsed : null
 }
 
@@ -106,7 +85,6 @@ export const getVaultUpdatedAt = async (req, res) => {
       .sort({ updatedAt: -1 })
       .select('updatedAt')
       .lean()
-
     res.status(200).json({ updatedAt: latest?.updatedAt ?? null })
   } catch (error) {
     publicFailure(res, 500, 'Error al cargar la caja fuerte', error)
@@ -126,35 +104,25 @@ export const openVault = async (req, res) => {
 export const saveVault = async (req, res) => {
   try {
     if (rejectSecret(res, req.body?.secret)) return
-
     const quantities = parseQuantities(req.body?.quantities)
     if (!quantities) {
-      return res.status(400).json({
-        message: 'Indica una cantidad entera para cada denominación'
-      })
+      return res.status(400).json({ message: 'Indica una cantidad entera para cada denominación' })
     }
-
     await ensureDenominations()
     const current = await snapshot()
     const now = new Date()
-
     await Denomination.bulkWrite(
       quantities.map(({ value, quantity }) => {
-        const previous = current.denominations.find(
-          (row) => row.value === value
-        )
+        const previous = current.denominations.find((row) => row.value === value)
         const changed = previous?.quantity !== quantity
         return {
           updateOne: {
             filter: { value },
-            update: {
-              $set: changed ? { quantity, updatedAt: now } : { quantity }
-            }
+            update: { $set: changed ? { quantity, updatedAt: now } : { quantity } }
           }
         }
       })
     )
-
     res.status(200).json(await snapshot())
   } catch (error) {
     publicFailure(res, 500, 'Error al guardar la caja fuerte', error)
